@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Younes AI</string>
+    <string name="hint_message">اكتب رسالتك...</string>
+    <string name="btn_send">إرسال</string>
+    <string name="loading">جاري التفكير...</string>
+    <string name="token_title">🔑 GitHub Token</string>
+    <string name="token_message">أدخل GitHub Personal Access Token الخاص بك</string>
+    <string name="token_hint">ghp_xxxxxxxxxxxxxxxxxxxx</string>
+    <string name="token_save">حفظ</string>
+    <string name="token_change">تغيير التوكن</string>
+    <string name="error_empty_token">يجب إدخال التوكن</string>
+    <string name="error_send">فشل الإرسال</string>
+    <string name="error_timeout">انتهى وقت الانتظار، حاول مرة أخرى</string>
+    <string name="welcome_message">مرحباً! أنا Younes AI 🤖\nأرسل لي أي سؤال أو أمر برمجي وسأنفذه فوراً!</string>
+</resources>
