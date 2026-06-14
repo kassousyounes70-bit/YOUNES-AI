@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- خلفيات رئيسية -->
+    <color name="bg_dark">#0D1117</color>
+    <color name="header_dark">#161B22</color>
+
+    <!-- ألوان الفقاعات -->
+    <color name="bubble_user">#238636</color>
+    <color name="bubble_bot">#21262D</color>
+
+    <!-- ألوان النصوص -->
+    <color name="white">#FFFFFF</color>
+    <color name="hint_color">#8B949E</color>
+
+    <!-- اللون الأخضر المميز -->
+    <color name="green_accent">#3FB950</color>
+    <color name="green_dark">#196C2E</color>
+
+    <!-- أيقونة البوت -->
+    <color name="bot_icon_bg">#1F6FEB</color>
+
+    <!-- حقل الإدخال -->
+    <color name="input_bg">#0D1117</color>
+    <color name="input_border">#30363D</color>
+</resources>
