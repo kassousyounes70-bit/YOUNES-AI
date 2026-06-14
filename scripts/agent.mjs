@@ -1,16 +1,14 @@
-import Anthropic from '@anthropic-ai/sdk';
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const userMessage   = process.env.ISSUE_BODY || '';
+const issueNumber   = process.env.ISSUE_NUMBER;
+const repo          = process.env.REPO;
+const token         = process.env.GH_TOKEN;
 
-const userMessage = process.env.ISSUE_BODY || '';
-const issueNumber = process.env.ISSUE_NUMBER;
-const repo = process.env.REPO;
-const token = process.env.GH_TOKEN;
-
-// ── قراءة هيكل الملفات الحالية ──
+// ── قراءة هيكل الملفات ──
 function getFileTree(dir = '.', prefix = '') {
   let result = '';
   try {
@@ -33,11 +31,16 @@ function getFileTree(dir = '.', prefix = '') {
 const fileTree = getFileTree('.');
 console.log('📨 طلب المستخدم:', userMessage);
 
-// ── استدعاء Claude ──
-const response = await client.messages.create({
-  model: 'claude-sonnet-4-6',
-  max_tokens: 4096,
-  system: `أنت مساعد ذكاء اصطناعي متخصص في البرمجة تعمل داخل GitHub repository.
+// ── استدعاء Gemini ──
+const geminiRes = await fetch(
+  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+  {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      system_instruction: {
+        parts: [{
+          text: `أنت مساعد ذكاء اصطناعي متخصص في البرمجة تعمل داخل GitHub repository.
 
 هيكل الملفات الحالية:
 ${fileTree}
@@ -64,19 +67,37 @@ PATH: المسار/للملف
 COMMAND: الأمر
 ===END_COMMAND===
 
-أجب دائماً بالعربية واشرح ما ستفعله قبل تنفيذه.`,
-  messages: [{ role: 'user', content: userMessage }]
-});
+أجب دائماً بالعربية واشرح ما ستفعله قبل تنفيذه.`
+        }]
+      },
+      contents: [{
+        role: 'user',
+        parts: [{ text: userMessage }]
+      }],
+      generationConfig: {
+        maxOutputTokens: 4096,
+        temperature: 0.7
+      }
+    })
+  }
+);
 
-const aiResponse = response.content[0].text;
-console.log('🤖 رد الذكاء:', aiResponse);
+const geminiData = await geminiRes.json();
+const aiResponse = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+if (!aiResponse) {
+  console.error('❌ لم يرد Gemini:', JSON.stringify(geminiData));
+  process.exit(1);
+}
+
+console.log('🤖 رد Gemini:', aiResponse);
 
 let executionLog = '';
 
 // ── تنفيذ CREATE_FILE ──
 for (const match of aiResponse.matchAll(/===CREATE_FILE===\s*PATH:\s*(.+?)\s*CONTENT:\s*([\s\S]*?)===END_FILE===/g)) {
   const filePath = match[1].trim();
-  const content = match[2].trim();
+  const content  = match[2].trim();
   try {
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     fs.writeFileSync(filePath, content);
@@ -89,7 +110,7 @@ for (const match of aiResponse.matchAll(/===CREATE_FILE===\s*PATH:\s*(.+?)\s*CON
 // ── تنفيذ EDIT_FILE ──
 for (const match of aiResponse.matchAll(/===EDIT_FILE===\s*PATH:\s*(.+?)\s*CONTENT:\s*([\s\S]*?)===END_FILE===/g)) {
   const filePath = match[1].trim();
-  const content = match[2].trim();
+  const content  = match[2].trim();
   try {
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
     fs.writeFileSync(filePath, content);
@@ -136,7 +157,7 @@ try {
   console.log('Git:', e.message);
 }
 
-// ── تنظيف الرد من الأوامر ──
+// ── تنظيف الرد ──
 const cleanResponse = aiResponse
   .replace(/===CREATE_FILE===[\s\S]*?===END_FILE===/g, '')
   .replace(/===EDIT_FILE===[\s\S]*?===END_FILE===/g, '')
@@ -164,7 +185,7 @@ await fetch(`https://api.github.com/repos/${repo}/issues/${issueNumber}/comments
   body: JSON.stringify({ body: replyBody })
 });
 
-// ── إغلاق الـ Issue بعد الرد ──
+// ── إغلاق الـ Issue ──
 await fetch(`https://api.github.com/repos/${repo}/issues/${issueNumber}`, {
   method: 'PATCH',
   headers: {
