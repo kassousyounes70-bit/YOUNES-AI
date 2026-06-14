@@ -2,11 +2,11 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const userMessage   = process.env.ISSUE_BODY || '';
-const issueNumber   = process.env.ISSUE_NUMBER;
-const repo          = process.env.REPO;
-const token         = process.env.GH_TOKEN;
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const userMessage  = process.env.ISSUE_BODY || '';
+const issueNumber  = process.env.ISSUE_NUMBER;
+const repo         = process.env.REPO;
+const token        = process.env.GH_TOKEN;
 
 // ── قراءة هيكل الملفات ──
 function getFileTree(dir = '.', prefix = '') {
@@ -31,16 +31,20 @@ function getFileTree(dir = '.', prefix = '') {
 const fileTree = getFileTree('.');
 console.log('📨 طلب المستخدم:', userMessage);
 
-// ── استدعاء Gemini ──
-const geminiRes = await fetch(
-  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-  {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      system_instruction: {
-        parts: [{
-          text: `أنت مساعد ذكاء اصطناعي متخصص في البرمجة تعمل داخل GitHub repository.
+// ── استدعاء Groq ──
+const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${GROQ_API_KEY}`
+  },
+  body: JSON.stringify({
+    model: 'llama-3.3-70b-versatile',
+    max_tokens: 4096,
+    messages: [
+      {
+        role: 'system',
+        content: `أنت مساعد ذكاء اصطناعي متخصص في البرمجة تعمل داخل GitHub repository.
 
 هيكل الملفات الحالية:
 ${fileTree}
@@ -68,29 +72,24 @@ COMMAND: الأمر
 ===END_COMMAND===
 
 أجب دائماً بالعربية واشرح ما ستفعله قبل تنفيذه.`
-        }]
       },
-      contents: [{
+      {
         role: 'user',
-        parts: [{ text: userMessage }]
-      }],
-      generationConfig: {
-        maxOutputTokens: 4096,
-        temperature: 0.7
+        content: userMessage
       }
-    })
-  }
-);
+    ]
+  })
+});
 
-const geminiData = await geminiRes.json();
-const aiResponse = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+const groqData = await groqRes.json();
+const aiResponse = groqData.choices?.[0]?.message?.content || '';
 
 if (!aiResponse) {
-  console.error('❌ لم يرد Gemini:', JSON.stringify(geminiData));
+  console.error('❌ لم يرد Groq:', JSON.stringify(groqData));
   process.exit(1);
 }
 
-console.log('🤖 رد Gemini:', aiResponse);
+console.log('🤖 رد Groq:', aiResponse);
 
 let executionLog = '';
 
