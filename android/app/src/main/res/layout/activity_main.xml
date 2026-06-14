@@ -66,7 +66,6 @@
             android:layout_weight="1"
             android:background="@drawable/bg_input"
             android:hint="اكتب رسالتك..."
-            android:hintTextColor="@color/hint_color"
             android:inputType="textMultiLine"
             android:maxLines="4"
             android:paddingStart="16dp"
@@ -74,6 +73,7 @@
             android:paddingTop="10dp"
             android:paddingBottom="10dp"
             android:textColor="@color/white"
+            android:textColorHint="@color/hint_color"
             android:textSize="15sp"
             android:layoutDirection="rtl" />
 
