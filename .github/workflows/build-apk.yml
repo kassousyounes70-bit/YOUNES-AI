@@ -21,8 +21,22 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.4'
+
+      - name: Generate gradlew
+        working-directory: android
+        run: |
+          gradle wrapper --gradle-version 8.4
+          chmod +x gradlew
+
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+
+      - name: Accept Android Licenses
+        run: yes | sdkmanager --licenses || true
 
       - name: Generate App Icon
         run: |
@@ -32,44 +46,58 @@ jobs:
           mkdir -p android/app/src/main/res/mipmap-xhdpi
           mkdir -p android/app/src/main/res/mipmap-xxhdpi
           mkdir -p android/app/src/main/res/mipmap-xxxhdpi
-          convert -size 48x48 xc:#0D1117 \
-            -fill '#3FB950' -draw "circle 24,24 24,4" \
-            -fill white -pointsize 24 -gravity center \
+          convert -size 192x192 xc:#0D1117 \
+            -fill '#3FB950' \
+            -draw "circle 96,96 96,10" \
+            -fill white \
+            -font DejaVu-Sans-Bold \
+            -pointsize 80 \
+            -gravity center \
             -annotate 0 "Y" \
+            android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          convert android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png \
+            -resize 48x48 \
             android/app/src/main/res/mipmap-mdpi/ic_launcher.png
-          convert android/app/src/main/res/mipmap-mdpi/ic_launcher.png \
-            -resize 72x72 android/app/src/main/res/mipmap-hdpi/ic_launcher.png
-          convert android/app/src/main/res/mipmap-mdpi/ic_launcher.png \
-            -resize 96x96 android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
-          convert android/app/src/main/res/mipmap-mdpi/ic_launcher.png \
-            -resize 144x144 android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
-          convert android/app/src/main/res/mipmap-mdpi/ic_launcher.png \
-            -resize 192x192 android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          convert android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png \
+            -resize 72x72 \
+            android/app/src/main/res/mipmap-hdpi/ic_launcher.png
+          convert android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png \
+            -resize 96x96 \
+            android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
+          convert android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png \
+            -resize 144x144 \
+            android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+          cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png \
+            android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png
+          cp android/app/src/main/res/mipmap-hdpi/ic_launcher.png \
+            android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png
+          cp android/app/src/main/res/mipmap-xhdpi/ic_launcher.png \
+            android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png
           cp android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png \
             android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png
           cp android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png \
             android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png
 
-      - name: Make gradlew executable
-        run: chmod +x android/gradlew
-
       - name: Build Debug APK
         working-directory: android
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleDebug --no-daemon
 
-      - name: Upload APK
+      - name: Upload APK as Artifact
         uses: actions/upload-artifact@v4
         with:
           name: YounesAI-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
-        if: github.ref == 'refs/heads/main'
         with:
           tag_name: v${{ github.run_number }}
           name: "🤖 Younes AI v${{ github.run_number }}"
           files: android/app/build/outputs/apk/debug/app-debug.apk
-          body: "✅ تم بناء التطبيق تلقائياً"
+          body: |
+            ## 🤖 Younes AI
+            ✅ تم بناء التطبيق تلقائياً
+            📱 حمّل الـ APK وثبّته على هاتفك
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
