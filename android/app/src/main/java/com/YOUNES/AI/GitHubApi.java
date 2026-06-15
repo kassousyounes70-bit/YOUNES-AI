@@ -31,17 +31,20 @@ public class GitHubApi {
         this.token = token;
         this.client = new OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(60, TimeUnit.SECONDS)
+                .readTimeout(120, TimeUnit.SECONDS)
                 .writeTimeout(30, TimeUnit.SECONDS)
                 .build();
     }
 
-    // ── إرسال رسالة كـ Issue جديد ──
-    public void sendMessage(String message, Callback callback) {
+    // ── إرسال رسالة مع النموذج المختار ──
+    public void sendMessage(String message, String model, Callback callback) {
         new Thread(() -> {
             try {
+                // عنوان الـ Issue يحمل النموذج المختار
+                String title = "[" + model + "] AI Request";
+
                 JSONObject body = new JSONObject();
-                body.put("title", "🤖 AI Request");
+                body.put("title", title);
                 body.put("body", message);
                 body.put("labels", new JSONArray().put("ai-request"));
 
@@ -70,15 +73,15 @@ public class GitHubApi {
         }).start();
     }
 
-    // ── انتظار رد الذكاء على الـ Issue ──
+    // ── انتظار رد الذكاء ──
     public void waitForReply(int issueNumber, Callback callback) {
         new Thread(() -> {
-            int attempts = 0;
-            int maxAttempts = 30; // انتظر حتى 5 دقائق
+            int attempts    = 0;
+            int maxAttempts = 36; // 6 دقائق
 
             while (attempts < maxAttempts) {
                 try {
-                    Thread.sleep(10000); // كل 10 ثوان
+                    Thread.sleep(10000);
                     attempts++;
 
                     Request request = new Request.Builder()
@@ -92,10 +95,9 @@ public class GitHubApi {
                         if (response.isSuccessful() && response.body() != null) {
                             JSONArray comments = new JSONArray(response.body().string());
                             if (comments.length() > 0) {
-                                JSONObject lastComment = comments.getJSONObject(comments.length() - 1);
-                                String body = lastComment.getString("body");
-                                // تحقق أن الرد من الـ bot وليس من المستخدم
-                                if (body.contains("🤖 رد المساعد")) {
+                                JSONObject last = comments.getJSONObject(comments.length() - 1);
+                                String body = last.getString("body");
+                                if (body.contains("🤖 رد المساعد") || body.contains("🔀 مقارنة")) {
                                     callback.onSuccess(cleanReply(body));
                                     return;
                                 }
@@ -110,13 +112,14 @@ public class GitHubApi {
         }).start();
     }
 
-    // ── تنظيف الرد من رموز Markdown ──
+    // ── تنظيف الرد ──
     private String cleanReply(String raw) {
         return raw
                 .replace("## 🤖 رد المساعد", "")
-                .replace("---", "")
-                .replace("*⏱️ Younes AI Agent — kassousyounes70-bit/YOUNES-AI*", "")
+                .replace("## 🔀 مقارنة بين 3 نماذج", "🔀 مقارنة بين 3 نماذج\n")
+                .replaceAll("\\*⏱️.*\\*", "")
                 .replaceAll("### 📋 العمليات المنفذة:[\\s\\S]*", "")
+                .replace("---", "")
                 .trim();
     }
 }
