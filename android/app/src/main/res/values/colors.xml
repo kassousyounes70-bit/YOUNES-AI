@@ -16,10 +16,17 @@
     <color name="green_accent">#3FB950</color>
     <color name="green_dark">#196C2E</color>
 
+    <!-- لون المقارنة -->
+    <color name="compare_color">#F78166</color>
+
     <!-- أيقونة البوت -->
     <color name="bot_icon_bg">#1F6FEB</color>
 
     <!-- حقل الإدخال -->
     <color name="input_bg">#0D1117</color>
     <color name="input_border">#30363D</color>
+
+    <!-- Chip selector colors -->
+    <color name="chip_selected">#238636</color>
+    <color name="chip_unselected">#21262D</color>
 </resources>
