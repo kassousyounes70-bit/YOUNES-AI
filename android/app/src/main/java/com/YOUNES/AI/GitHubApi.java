@@ -3,7 +3,6 @@ package com.YOUNES.AI;
 import android.util.Log;
 import org.json.JSONArray;
 import org.json.JSONObject;
-import java.io.IOException;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -16,8 +15,8 @@ public class GitHubApi {
     private static final String TAG        = "GitHubApi";
     private static final String REPO_OWNER = "kassousyounes70-bit";
     private static final String REPO_NAME  = "YOUNES-AI";
-    private static final String BASE_URL   = "https://api.github.com/repos/"
-                                             + REPO_OWNER + "/" + REPO_NAME;
+    private static final String BASE_URL   =
+            "https://api.github.com/repos/" + REPO_OWNER + "/" + REPO_NAME;
 
     private final OkHttpClient client;
     private final String token;
@@ -36,12 +35,13 @@ public class GitHubApi {
                 .build();
     }
 
-    // ── إرسال رسالة مع النموذج المختار ──
+    // ── إرسال رسالة مع النموذج ──
     public void sendMessage(String message, String model, Callback callback) {
         new Thread(() -> {
             try {
-                // عنوان الـ Issue يحمل النموذج المختار
-                String title = "[" + model + "] AI Request";
+                // استبدال llama بـ phi4
+                String modelKey = model.equals("llama") ? "phi4" : model;
+                String title    = "[" + modelKey + "] AI Request";
 
                 JSONObject body = new JSONObject();
                 body.put("title", title);
@@ -59,8 +59,8 @@ public class GitHubApi {
 
                 try (Response response = client.newCall(request).execute()) {
                     if (response.isSuccessful() && response.body() != null) {
-                        JSONObject json = new JSONObject(response.body().string());
-                        int issueNumber = json.getInt("number");
+                        JSONObject json   = new JSONObject(response.body().string());
+                        int issueNumber   = json.getInt("number");
                         callback.onSuccess(String.valueOf(issueNumber));
                     } else {
                         callback.onError("فشل الإرسال: " + response.code());
@@ -73,11 +73,11 @@ public class GitHubApi {
         }).start();
     }
 
-    // ── انتظار رد الذكاء ──
+    // ── انتظار الرد ──
     public void waitForReply(int issueNumber, Callback callback) {
         new Thread(() -> {
             int attempts    = 0;
-            int maxAttempts = 36; // 6 دقائق
+            int maxAttempts = 36;
 
             while (attempts < maxAttempts) {
                 try {
@@ -93,11 +93,14 @@ public class GitHubApi {
 
                     try (Response response = client.newCall(request).execute()) {
                         if (response.isSuccessful() && response.body() != null) {
-                            JSONArray comments = new JSONArray(response.body().string());
+                            JSONArray comments =
+                                new JSONArray(response.body().string());
                             if (comments.length() > 0) {
-                                JSONObject last = comments.getJSONObject(comments.length() - 1);
+                                JSONObject last =
+                                    comments.getJSONObject(comments.length() - 1);
                                 String body = last.getString("body");
-                                if (body.contains("🤖 رد المساعد") || body.contains("🔀 مقارنة")) {
+                                if (body.contains("🤖 رد المساعد")
+                                        || body.contains("##COMPARE##")) {
                                     callback.onSuccess(cleanReply(body));
                                     return;
                                 }
@@ -108,17 +111,16 @@ public class GitHubApi {
                     Log.e(TAG, "waitForReply error", e);
                 }
             }
-            callback.onError("انتهى وقت الانتظار، حاول مرة أخرى");
+            callback.onError("انتهى وقت الانتظار");
         }).start();
     }
 
-    // ── تنظيف الرد ──
     private String cleanReply(String raw) {
+        if (raw.contains("##COMPARE##")) return raw;
         return raw
                 .replace("## 🤖 رد المساعد", "")
-                .replace("## 🔀 مقارنة بين 3 نماذج", "🔀 مقارنة بين 3 نماذج\n")
                 .replaceAll("\\*⏱️.*\\*", "")
-                .replaceAll("### 📋 العمليات المنفذة:[\\s\\S]*", "")
+                .replaceAll("### 📋 العمليات:[\\s\\S]*", "")
                 .replace("---", "")
                 .trim();
     }
