@@ -103,19 +103,53 @@
                 app:chipStrokeWidth="1dp" />
 
         </com.google.android.material.chip.ChipGroup>
-
     </HorizontalScrollView>
 
-    <!-- Chat RecyclerView -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recycler_view"
+    <!-- تبويبات المقارنة — تظهر فقط عند اختيار قارن -->
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/tab_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        android:background="@color/header_dark"
+        app:tabTextColor="@color/hint_color"
+        app:tabSelectedTextColor="@color/green_accent"
+        app:tabIndicatorColor="@color/green_accent"
+        app:layout_constraintTop_toBottomOf="@id/scroll_chips" />
+
+    <!-- منطقة المحادثة العادية -->
+    <FrameLayout
+        android:id="@+id/layout_normal"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:clipToPadding="false"
-        android:paddingTop="8dp"
-        android:paddingBottom="8dp"
-        app:layout_constraintTop_toBottomOf="@id/scroll_chips"
-        app:layout_constraintBottom_toTopOf="@id/input_layout" />
+        app:layout_constraintTop_toBottomOf="@id/tab_layout"
+        app:layout_constraintBottom_toTopOf="@id/input_layout">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recycler_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp" />
+
+    </FrameLayout>
+
+    <!-- منطقة المقارنة — 3 شاشات بالسحب -->
+    <FrameLayout
+        android:id="@+id/layout_compare"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toBottomOf="@id/tab_layout"
+        app:layout_constraintBottom_toTopOf="@id/input_layout">
+
+        <androidx.viewpager2.widget.ViewPager2
+            android:id="@+id/view_pager"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+    </FrameLayout>
 
     <!-- Input Area -->
     <LinearLayout
