@@ -5,19 +5,19 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
-import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager2.widget.ViewPager2;
-import androidx.recyclerview.widget.RecyclerView.Adapter;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.tabs.TabLayout;
 import com.google.android.material.tabs.TabLayoutMediator;
@@ -27,25 +27,24 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity
         implements ChatAdapter.OnMessageActionListener {
 
-    // ── Views ──
-    private RecyclerView     recyclerView;
-    private ChatAdapter      chatAdapter;
+    private RecyclerView       recyclerView;
+    private ChatAdapter        chatAdapter;
     private List<MessageModel> messageList;
-    private EditText         etMessage;
-    private ImageButton      btnSend;
-    private ChipGroup        chipGroup;
-    private ViewPager2       viewPager;
-    private TabLayout        tabLayout;
+    private EditText           etMessage;
+    private ImageButton        btnSend;
+    private ChipGroup          chipGroup;
+    private ViewPager2         viewPager;
+    private TabLayout          tabLayout;
+    private View               layoutNormal;
+    private View               layoutCompare;
 
-    // ── حالة المقارنة ──
-    private View layoutNormal;
-    private View layoutCompare;
-    private TextView tvModel1, tvModel2, tvModel3;
+    // نصوص ردود المقارنة
+    private final String[] compareTexts = {"", "", ""};
 
     private GitHubApi gitHubApi;
     private Handler   mainHandler;
     private SharedPreferences prefs;
-    private String    selectedModel = "llama";
+    private String    selectedModel  = "llama";
     private int       editingPosition = -1;
 
     private static final String PREF_NAME  = "YounesAI";
@@ -55,10 +54,8 @@ public class MainActivity extends AppCompatActivity
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
         mainHandler = new Handler(Looper.getMainLooper());
         prefs       = getSharedPreferences(PREF_NAME, MODE_PRIVATE);
-
         initViews();
         checkToken();
     }
@@ -72,19 +69,53 @@ public class MainActivity extends AppCompatActivity
         layoutCompare = findViewById(R.id.layout_compare);
         viewPager     = findViewById(R.id.view_pager);
         tabLayout     = findViewById(R.id.tab_layout);
-        tvModel1      = findViewById(R.id.tv_model1);
-        tvModel2      = findViewById(R.id.tv_model2);
-        tvModel3      = findViewById(R.id.tv_model3);
 
         // ── إعداد RecyclerView ──
         messageList = new ArrayList<>();
         chatAdapter = new ChatAdapter(messageList);
         chatAdapter.setOnMessageActionListener(this);
-
-        LinearLayoutManager layoutManager = new LinearLayoutManager(this);
-        layoutManager.setStackFromEnd(true);
-        recyclerView.setLayoutManager(layoutManager);
+        LinearLayoutManager lm = new LinearLayoutManager(this);
+        lm.setStackFromEnd(true);
+        recyclerView.setLayoutManager(lm);
         recyclerView.setAdapter(chatAdapter);
+
+        // ── إعداد ViewPager للمقارنة ──
+        String[] modelNames = {"🦙 Llama 4", "🐋 DeepSeek", "✨ GPT-5"};
+
+        viewPager.setAdapter(new RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+            @NonNull
+            @Override
+            public RecyclerView.ViewHolder onCreateViewHolder(
+                    @NonNull ViewGroup parent, int viewType) {
+                ScrollView scroll = new ScrollView(parent.getContext());
+                TextView tv = new TextView(parent.getContext());
+                tv.setPadding(32, 32, 32, 32);
+                tv.setTextColor(0xFFFFFFFF);
+                tv.setTextSize(15f);
+                tv.setTag("model_" + viewType);
+                scroll.addView(tv);
+                scroll.setLayoutParams(new ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT));
+                return new RecyclerView.ViewHolder(scroll) {};
+            }
+
+            @Override
+            public void onBindViewHolder(
+                    @NonNull RecyclerView.ViewHolder holder, int position) {
+                ScrollView scroll = (ScrollView) holder.itemView;
+                TextView tv = (TextView) scroll.getChildAt(0);
+                tv.setTag("model_" + position);
+                tv.setText(compareTexts[position]);
+            }
+
+            @Override
+            public int getItemCount() { return 3; }
+        });
+
+        new TabLayoutMediator(tabLayout, viewPager,
+                (tab, position) -> tab.setText(modelNames[position])
+        ).attach();
 
         // ── أزرار النماذج ──
         chipGroup.setOnCheckedStateChangeListener((group, checkedIds) -> {
@@ -95,54 +126,11 @@ public class MainActivity extends AppCompatActivity
             else if (id == R.id.chip_gpt5)     selectedModel = "gpt5";
             else if (id == R.id.chip_compare)  selectedModel = "compare";
 
-            // إظهار/إخفاء تبويبات المقارنة
-            if (selectedModel.equals("compare")) {
-                tabLayout.setVisibility(View.VISIBLE);
-            } else {
-                tabLayout.setVisibility(View.GONE);
-            }
+            tabLayout.setVisibility(
+                selectedModel.equals("compare") ? View.VISIBLE : View.GONE);
         });
-
-        // ── إعداد ViewPager للمقارنة ──
-        setupViewPager();
 
         btnSend.setOnClickListener(v -> sendMessage());
-    }
-
-    // ── إعداد ViewPager بـ 3 شاشات قابلة للسحب ──
-    private void setupViewPager() {
-        String[] modelNames = {"🦙 Llama 4", "🐋 DeepSeek", "✨ GPT-5"};
-        TextView[] modelViews = {tvModel1, tvModel2, tvModel3};
-
-        viewPager.setAdapter(new RecyclerView.Adapter() {
-            @NonNull
-            @Override
-            public RecyclerView.ViewHolder onCreateViewHolder(
-                    @NonNull ViewGroup parent, int viewType) {
-                TextView tv = new TextView(parent.getContext());
-                tv.setPadding(32, 32, 32, 32);
-                tv.setTextColor(0xFFFFFFFF);
-                tv.setTextSize(15f);
-                tv.setLayoutParams(new ViewGroup.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT,
-                        ViewGroup.LayoutParams.MATCH_PARENT));
-                tv.setVerticalScrollBarEnabled(true);
-                return new RecyclerView.ViewHolder(tv) {};
-            }
-
-            @Override
-            public void onBindViewHolder(
-                    @NonNull RecyclerView.ViewHolder holder, int position) {
-                modelViews[position] = (TextView) holder.itemView;
-            }
-
-            @Override
-            public int getItemCount() { return 3; }
-        });
-
-        new TabLayoutMediator(tabLayout, viewPager, (tab, position) ->
-                tab.setText(modelNames[position])
-        ).attach();
     }
 
     private void checkToken() {
@@ -236,25 +224,37 @@ public class MainActivity extends AppCompatActivity
         });
     }
 
-    // ── عرض نتائج المقارنة في 3 شاشات ──
+    // ── عرض المقارنة في 3 شاشات ──
     private void showCompareResult(String reply) {
         layoutNormal.setVisibility(View.GONE);
         layoutCompare.setVisibility(View.VISIBLE);
 
         String[] parts = reply.split("##MODEL[123]##");
         if (parts.length >= 4) {
-            String r1 = parts[1].replace("##END##", "").trim();
-            String r2 = parts[2].replace("##END##", "").trim();
-            String r3 = parts[3].replace("##END##", "").trim();
+            compareTexts[0] = parts[1].replace("##END##", "").trim();
+            compareTexts[1] = parts[2].replace("##END##", "").trim();
+            compareTexts[2] = parts[3].replace("##END##", "").trim();
+            viewPager.getAdapter().notifyDataSetChanged();
 
-            if (tvModel1 != null) typewriterInView(tvModel1, r1);
-            if (tvModel2 != null) typewriterInView(tvModel2, r2);
-            if (tvModel3 != null) typewriterInView(tvModel3, r3);
+            // تأثير الكتابة في الصفحة الأولى
+            mainHandler.postDelayed(() -> {
+                typewriterInPager(0, compareTexts[0]);
+                typewriterInPager(1, compareTexts[1]);
+                typewriterInPager(2, compareTexts[2]);
+            }, 300);
         }
     }
 
-    // ── تأثير الكتابة في TextView محدد ──
-    private void typewriterInView(TextView tv, String text) {
+    // ── تأثير الكتابة في صفحة ViewPager ──
+    private void typewriterInPager(int page, String text) {
+        RecyclerView.ViewHolder holder =
+            (RecyclerView.ViewHolder) viewPager.getTag(page);
+        if (holder == null) return;
+
+        ScrollView scroll = (ScrollView) holder.itemView;
+        TextView tv = (TextView) scroll.getChildAt(0);
+        if (tv == null) return;
+
         tv.setText("");
         mainHandler.post(new Runnable() {
             int i = 0;
@@ -293,7 +293,6 @@ public class MainActivity extends AppCompatActivity
         });
     }
 
-    // ── تعديل رسالة عند الضغط المطول ──
     @Override
     public void onEditMessage(String message, int position) {
         etMessage.setText(message);
