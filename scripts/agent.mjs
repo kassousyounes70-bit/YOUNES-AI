@@ -13,7 +13,7 @@ function getModel(title) {
   if (title.includes('[deepseek]'))  return 'DeepSeek-V3-0324';
   if (title.includes('[gpt5]'))      return 'gpt-4o';
   if (title.includes('[compare]'))   return 'compare';
-  return 'meta-llama/Llama-4-Scout-17B-16E-Instruct'; // افتراضي
+  return 'meta-llama/Llama-4-Scout-17B-16E-Instruct';
 }
 
 const selectedModel = getModel(issueTitle.toLowerCase());
@@ -43,7 +43,7 @@ function loadMemory() {
   try {
     if (fs.existsSync('memory.json')) {
       const data = JSON.parse(fs.readFileSync('memory.json', 'utf8'));
-      return data.slice(-10); // آخر 10 رسائل فقط
+      return data.slice(-10);
     }
   } catch(e) {}
   return [];
@@ -52,23 +52,29 @@ function loadMemory() {
 // ── حفظ الذاكرة ──
 function saveMemory(history) {
   try {
-    const limited = history.slice(-20); // احتفظ بآخر 20 رسالة
+    const limited = history.slice(-20);
     fs.writeFileSync('memory.json', JSON.stringify(limited, null, 2));
   } catch(e) {}
 }
 
-const fileTree  = getFileTree('.');
-const memory    = loadMemory();
+const fileTree = getFileTree('.');
+const memory   = loadMemory();
 
 console.log('📨 طلب المستخدم:', userMessage);
 console.log('🤖 النموذج:', selectedModel);
 
-const systemPrompt = `أنت مساعد ذكاء اصطناعي متخصص في البرمجة تعمل داخل GitHub repository.
+// ── System Prompt عام لأي موضوع ──
+const systemPrompt = `أنت مساعد ذكاء اصطناعي متعدد المهام وذكي وودود. تستطيع المساعدة في أي موضوع يطلبه المستخدم سواء كان:
+- أسئلة عامة ومعلومات
+- برمجة وتقنية
+- تفسير أحلام
+- نصائح وإرشادات
+- ترجمة وتحرير نصوص
+- رياضيات وعلوم
+- أدب وشعر وقصص
+- أي موضوع آخر
 
-هيكل الملفات الحالية:
-${fileTree}
-
-يمكنك تنفيذ العمليات التالية بهذه الصيغ بالضبط:
+عند طلب مساعدة برمجية داخل GitHub repository يمكنك تنفيذ:
 
 ===CREATE_FILE===
 PATH: المسار/للملف
@@ -90,7 +96,10 @@ PATH: المسار/للملف
 COMMAND: الأمر
 ===END_COMMAND===
 
-أجب دائماً بالعربية واشرح ما ستفعله قبل تنفيذه.`;
+هيكل الملفات الحالية في المشروع:
+${fileTree}
+
+تحدث دائماً بالعربية بأسلوب ودي ومفيد.`;
 
 // ── بناء رسائل المحادثة مع الذاكرة ──
 const messages = [
@@ -100,23 +109,32 @@ const messages = [
 
 // ── استدعاء نموذج واحد ──
 async function callModel(modelId) {
-  const res = await fetch('https://models.inference.ai.azure.com/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${GH_TOKEN}`
-    },
-    body: JSON.stringify({
-      model: modelId,
-      max_tokens: 4096,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...messages
-      ]
-    })
-  });
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content || '';
+  try {
+    const res = await fetch('https://models.inference.ai.azure.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${GH_TOKEN}`
+      },
+      body: JSON.stringify({
+        model: modelId,
+        max_tokens: 4096,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...messages
+        ]
+      })
+    });
+    const data = await res.json();
+    if (data.error) {
+      console.error(`❌ خطأ في ${modelId}:`, data.error.message);
+      return `⚠️ النموذج ${modelId} غير متاح حالياً`;
+    }
+    return data.choices?.[0]?.message?.content || '⚠️ لا يوجد رد';
+  } catch(e) {
+    console.error(`❌ استثناء في ${modelId}:`, e.message);
+    return `⚠️ فشل الاتصال بـ ${modelId}`;
+  }
 }
 
 // ── تنفيذ العمليات ──
@@ -131,7 +149,7 @@ function executeOperations(aiResponse) {
       fs.writeFileSync(filePath, content);
       executionLog += `✅ تم إنشاء: ${filePath}\n`;
     } catch(e) {
-      executionLog += `❌ فشل إنشاء: ${filePath} — ${e.message}\n`;
+      executionLog += `❌ فشل: ${filePath} — ${e.message}\n`;
     }
   }
 
@@ -143,7 +161,7 @@ function executeOperations(aiResponse) {
       fs.writeFileSync(filePath, content);
       executionLog += `✅ تم تعديل: ${filePath}\n`;
     } catch(e) {
-      executionLog += `❌ فشل تعديل: ${filePath} — ${e.message}\n`;
+      executionLog += `❌ فشل: ${filePath} — ${e.message}\n`;
     }
   }
 
@@ -153,7 +171,7 @@ function executeOperations(aiResponse) {
       fs.unlinkSync(filePath);
       executionLog += `✅ تم حذف: ${filePath}\n`;
     } catch(e) {
-      executionLog += `❌ فشل حذف: ${filePath} — ${e.message}\n`;
+      executionLog += `❌ فشل: ${filePath} — ${e.message}\n`;
     }
   }
 
@@ -161,9 +179,9 @@ function executeOperations(aiResponse) {
     const cmd = match[1].trim();
     try {
       const output = execSync(cmd, { encoding: 'utf8', timeout: 30000 });
-      executionLog += `✅ تم تشغيل: ${cmd}\n${output}\n`;
+      executionLog += `✅ تم: ${cmd}\n${output}\n`;
     } catch(e) {
-      executionLog += `⚠️ أمر: ${cmd}\n${e.message}\n`;
+      executionLog += `⚠️ ${cmd}\n${e.message}\n`;
     }
   }
 
@@ -180,10 +198,10 @@ function cleanResponse(text) {
     .trim();
 }
 
-let replyBody = '';
+let replyBody    = '';
 let executionLog = '';
 
-// ── وضع المقارنة أو النموذج الواحد ──
+// ── وضع المقارنة ──
 if (selectedModel === 'compare') {
   console.log('🔀 وضع المقارنة — 3 نماذج');
 
@@ -193,37 +211,29 @@ if (selectedModel === 'compare') {
     callModel('gpt-4o')
   ]);
 
-  executionLog = executeOperations(r1); // ننفذ فقط من Llama
+  executionLog = executeOperations(r1);
 
-  replyBody = `## 🔀 مقارنة بين 3 نماذج
-
----
-
-### 🦙 Llama 4 Scout
+  // ── تنسيق خاص للمقارنة يفهمه التطبيق ──
+  replyBody = `##COMPARE##
+##MODEL1##
 ${cleanResponse(r1)}
-
----
-
-### 🐋 DeepSeek V3
+##MODEL2##
 ${cleanResponse(r2)}
-
----
-
-### 🤖 GPT-5
+##MODEL3##
 ${cleanResponse(r3)}
-
-${executionLog ? `---\n### 📋 العمليات المنفذة:\n\`\`\`\n${executionLog}\`\`\`` : ''}
+##END##
+${executionLog ? `\n📋 العمليات:\n${executionLog}` : ''}
 
 ---
-*⏱️ Younes AI Agent — وضع المقارنة*`;
+*⏱️ Younes AI — وضع المقارنة*`;
 
 } else {
+  // ── نموذج واحد ──
   console.log('🤖 نموذج واحد:', selectedModel);
 
   const aiResponse = await callModel(selectedModel);
-  executionLog = executeOperations(aiResponse);
+  executionLog     = executeOperations(aiResponse);
 
-  // ── حفظ الذاكرة ──
   memory.push({ role: 'user', content: userMessage });
   memory.push({ role: 'assistant', content: aiResponse });
   saveMemory(memory);
@@ -237,23 +247,23 @@ ${executionLog ? `---\n### 📋 العمليات المنفذة:\n\`\`\`\n${exec
       execSync('git add -A');
       execSync(`git commit -m "🤖 ${userMessage.substring(0, 60)}"`);
       execSync('git push origin HEAD');
-      executionLog += `\n✅ تم حفظ التغييرات في المستودع\n`;
+      executionLog += `\n✅ تم حفظ التغييرات\n`;
     }
   } catch(e) {
     console.log('Git:', e.message);
   }
 
-  replyBody = `## 🤖 رد المساعد (${selectedModel})
+  replyBody = `## 🤖 رد المساعد
 
 ${cleanResponse(aiResponse)}
 
-${executionLog ? `---\n### 📋 العمليات المنفذة:\n\`\`\`\n${executionLog}\`\`\`` : ''}
+${executionLog ? `---\n### 📋 العمليات:\n\`\`\`\n${executionLog}\`\`\`` : ''}
 
 ---
 *⏱️ Younes AI Agent — kassousyounes70-bit/YOUNES-AI*`;
 }
 
-// ── نشر الرد على GitHub Issue ──
+// ── نشر الرد ──
 await fetch(`https://api.github.com/repos/${repo}/issues/${issueNumber}/comments`, {
   method: 'POST',
   headers: {
