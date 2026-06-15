@@ -27,28 +27,37 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity
         implements ChatAdapter.OnMessageActionListener {
 
-    private RecyclerView       recyclerView;
-    private ChatAdapter        chatAdapter;
-    private List<MessageModel> messageList;
-    private EditText           etMessage;
-    private ImageButton        btnSend;
-    private ChipGroup          chipGroup;
-    private ViewPager2         viewPager;
-    private TabLayout          tabLayout;
-    private View               layoutNormal;
-    private View               layoutCompare;
+    // ── Views المحادثة العادية ──
+    private RecyclerView         recyclerView;
+    private ChatAdapter          chatAdapter;
+    private List<MessageModel>   messageList;
 
-    // نصوص ردود المقارنة
-    private final String[] compareTexts = {"", "", ""};
+    // ── Views المقارنة ──
+    private ViewPager2  viewPager;
+    private TabLayout   tabLayout;
+    private View        layoutNormal;
+    private View        layoutCompare;
+
+    // ── قوائم رسائل منفصلة لكل نموذج في المقارنة ──
+    private final List<MessageModel>[] compareLists = new List[3];
+    private final ChatAdapter[]        compareAdapters = new ChatAdapter[3];
+
+    // ── Input ──
+    private EditText    etMessage;
+    private ImageButton btnSend;
+    private ChipGroup   chipGroup;
 
     private GitHubApi gitHubApi;
     private Handler   mainHandler;
     private SharedPreferences prefs;
-    private String    selectedModel  = "llama";
+    private String    selectedModel   = "phi4";
     private int       editingPosition = -1;
 
     private static final String PREF_NAME  = "YounesAI";
     private static final String PREF_TOKEN = "github_token";
+
+    private static final String[] MODEL_NAMES =
+            {"⚡ Phi-4", "🐋 DeepSeek", "✨ GPT-5"};
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -56,6 +65,13 @@ public class MainActivity extends AppCompatActivity
         setContentView(R.layout.activity_main);
         mainHandler = new Handler(Looper.getMainLooper());
         prefs       = getSharedPreferences(PREF_NAME, MODE_PRIVATE);
+
+        // تهيئة قوائم المقارنة
+        for (int i = 0; i < 3; i++) {
+            compareLists[i]    = new ArrayList<>();
+            compareAdapters[i] = new ChatAdapter(compareLists[i]);
+        }
+
         initViews();
         checkToken();
     }
@@ -70,7 +86,7 @@ public class MainActivity extends AppCompatActivity
         viewPager     = findViewById(R.id.view_pager);
         tabLayout     = findViewById(R.id.tab_layout);
 
-        // ── إعداد RecyclerView ──
+        // ── RecyclerView للمحادثة العادية ──
         messageList = new ArrayList<>();
         chatAdapter = new ChatAdapter(messageList);
         chatAdapter.setOnMessageActionListener(this);
@@ -79,34 +95,28 @@ public class MainActivity extends AppCompatActivity
         recyclerView.setLayoutManager(lm);
         recyclerView.setAdapter(chatAdapter);
 
-        // ── إعداد ViewPager للمقارنة ──
-        String[] modelNames = {"🦙 Llama 4", "🐋 DeepSeek", "✨ GPT-5"};
-
+        // ── ViewPager — كل صفحة لها RecyclerView مستقل ──
         viewPager.setAdapter(new RecyclerView.Adapter<RecyclerView.ViewHolder>() {
             @NonNull
             @Override
             public RecyclerView.ViewHolder onCreateViewHolder(
                     @NonNull ViewGroup parent, int viewType) {
-                ScrollView scroll = new ScrollView(parent.getContext());
-                TextView tv = new TextView(parent.getContext());
-                tv.setPadding(32, 32, 32, 32);
-                tv.setTextColor(0xFFFFFFFF);
-                tv.setTextSize(15f);
-                tv.setTag("model_" + viewType);
-                scroll.addView(tv);
-                scroll.setLayoutParams(new ViewGroup.LayoutParams(
+                RecyclerView rv = new RecyclerView(parent.getContext());
+                rv.setLayoutParams(new ViewGroup.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.MATCH_PARENT));
-                return new RecyclerView.ViewHolder(scroll) {};
+                LinearLayoutManager llm =
+                        new LinearLayoutManager(parent.getContext());
+                llm.setStackFromEnd(true);
+                rv.setLayoutManager(llm);
+                return new RecyclerView.ViewHolder(rv) {};
             }
 
             @Override
             public void onBindViewHolder(
                     @NonNull RecyclerView.ViewHolder holder, int position) {
-                ScrollView scroll = (ScrollView) holder.itemView;
-                TextView tv = (TextView) scroll.getChildAt(0);
-                tv.setTag("model_" + position);
-                tv.setText(compareTexts[position]);
+                RecyclerView rv = (RecyclerView) holder.itemView;
+                rv.setAdapter(compareAdapters[position]);
             }
 
             @Override
@@ -114,20 +124,27 @@ public class MainActivity extends AppCompatActivity
         });
 
         new TabLayoutMediator(tabLayout, viewPager,
-                (tab, position) -> tab.setText(modelNames[position])
+                (tab, pos) -> tab.setText(MODEL_NAMES[pos])
         ).attach();
 
         // ── أزرار النماذج ──
         chipGroup.setOnCheckedStateChangeListener((group, checkedIds) -> {
             if (checkedIds.isEmpty()) return;
             int id = checkedIds.get(0);
-            if      (id == R.id.chip_llama)    selectedModel = "llama";
+            if      (id == R.id.chip_llama)    selectedModel = "phi4";
             else if (id == R.id.chip_deepseek) selectedModel = "deepseek";
             else if (id == R.id.chip_gpt5)     selectedModel = "gpt5";
             else if (id == R.id.chip_compare)  selectedModel = "compare";
 
-            tabLayout.setVisibility(
-                selectedModel.equals("compare") ? View.VISIBLE : View.GONE);
+            if (selectedModel.equals("compare")) {
+                layoutNormal.setVisibility(View.GONE);
+                layoutCompare.setVisibility(View.VISIBLE);
+                tabLayout.setVisibility(View.VISIBLE);
+            } else {
+                layoutNormal.setVisibility(View.VISIBLE);
+                layoutCompare.setVisibility(View.GONE);
+                tabLayout.setVisibility(View.GONE);
+            }
         });
 
         btnSend.setOnClickListener(v -> sendMessage());
@@ -139,7 +156,7 @@ public class MainActivity extends AppCompatActivity
             showTokenDialog();
         } else {
             gitHubApi = new GitHubApi(token);
-            addBotMessage("مرحباً! أنا Younes AI 🤖\nاختر النموذج وأرسل لي أي سؤال!");
+            addBotMessage("مرحباً! أنا Younes AI 🤖\nاختر النموذج وأرسل أي سؤال!");
         }
     }
 
@@ -158,7 +175,7 @@ public class MainActivity extends AppCompatActivity
                     if (!TextUtils.isEmpty(token)) {
                         prefs.edit().putString(PREF_TOKEN, token).apply();
                         gitHubApi = new GitHubApi(token);
-                        addBotMessage("مرحباً! أنا Younes AI 🤖\nاختر النموذج وأرسل لي أي سؤال!");
+                        addBotMessage("مرحباً! أنا Younes AI 🤖\nاختر النموذج وأرسل أي سؤال!");
                     } else {
                         showTokenDialog();
                     }
@@ -178,8 +195,18 @@ public class MainActivity extends AppCompatActivity
         editingPosition = -1;
         btnSend.setEnabled(false);
 
-        addUserMessage(text);
-        int loadingIndex = addLoadingMessage();
+        if (selectedModel.equals("compare")) {
+            // ── وضع المقارنة: أضف رسالة المستخدم للثلاثة ──
+            for (int i = 0; i < 3; i++) {
+                compareLists[i].add(new MessageModel(text, MessageModel.TYPE_USER));
+                compareLists[i].add(new MessageModel("...", MessageModel.TYPE_LOADING));
+                compareAdapters[i].notifyDataSetChanged();
+            }
+        } else {
+            addUserMessage(text);
+        }
+
+        int loadingIndex = selectedModel.equals("compare") ? -1 : addLoadingMessage();
 
         gitHubApi.sendMessage(text, selectedModel, new GitHubApi.Callback() {
             @Override
@@ -190,12 +217,11 @@ public class MainActivity extends AppCompatActivity
                         @Override
                         public void onSuccess(String reply) {
                             mainHandler.post(() -> {
-                                removeLoadingMessage(loadingIndex);
-                                if (reply.startsWith("##COMPARE##")) {
+                                if (reply.contains("##COMPARE##")) {
                                     showCompareResult(reply);
                                 } else {
-                                    layoutNormal.setVisibility(View.VISIBLE);
-                                    layoutCompare.setVisibility(View.GONE);
+                                    if (loadingIndex >= 0)
+                                        removeLoadingMessage(loadingIndex);
                                     typewriterEffect(reply);
                                 }
                                 btnSend.setEnabled(true);
@@ -205,8 +231,18 @@ public class MainActivity extends AppCompatActivity
                         @Override
                         public void onError(String error) {
                             mainHandler.post(() -> {
-                                removeLoadingMessage(loadingIndex);
-                                addBotMessage("⚠️ " + error);
+                                if (loadingIndex >= 0)
+                                    removeLoadingMessage(loadingIndex);
+                                if (selectedModel.equals("compare")) {
+                                    for (int i = 0; i < 3; i++) {
+                                        removeLastLoading(i);
+                                        compareLists[i].add(new MessageModel(
+                                            "⚠️ " + error, MessageModel.TYPE_BOT));
+                                        compareAdapters[i].notifyDataSetChanged();
+                                    }
+                                } else {
+                                    addBotMessage("⚠️ " + error);
+                                }
                                 btnSend.setEnabled(true);
                             });
                         }
@@ -216,7 +252,7 @@ public class MainActivity extends AppCompatActivity
             @Override
             public void onError(String error) {
                 mainHandler.post(() -> {
-                    removeLoadingMessage(loadingIndex);
+                    if (loadingIndex >= 0) removeLoadingMessage(loadingIndex);
                     addBotMessage("❌ " + error);
                     btnSend.setEnabled(true);
                 });
@@ -224,45 +260,51 @@ public class MainActivity extends AppCompatActivity
         });
     }
 
-    // ── عرض المقارنة في 3 شاشات ──
+    // ── عرض المقارنة — كل نموذج في تبويبه المستقل ──
     private void showCompareResult(String reply) {
-        layoutNormal.setVisibility(View.GONE);
-        layoutCompare.setVisibility(View.VISIBLE);
-
         String[] parts = reply.split("##MODEL[123]##");
         if (parts.length >= 4) {
-            compareTexts[0] = parts[1].replace("##END##", "").trim();
-            compareTexts[1] = parts[2].replace("##END##", "").trim();
-            compareTexts[2] = parts[3].replace("##END##", "").trim();
-            viewPager.getAdapter().notifyDataSetChanged();
+            String[] responses = {
+                parts[1].replace("##END##", "").trim(),
+                parts[2].replace("##END##", "").trim(),
+                parts[3].replace("##END##", "").trim()
+            };
 
-            // تأثير الكتابة في الصفحة الأولى
-            mainHandler.postDelayed(() -> {
-                typewriterInPager(0, compareTexts[0]);
-                typewriterInPager(1, compareTexts[1]);
-                typewriterInPager(2, compareTexts[2]);
-            }, 300);
+            for (int i = 0; i < 3; i++) {
+                removeLastLoading(i);
+                final int idx      = i;
+                final String text  = responses[i];
+                MessageModel msg   = new MessageModel("", MessageModel.TYPE_BOT);
+                compareLists[idx].add(msg);
+                compareAdapters[idx].notifyDataSetChanged();
+                typewriterInList(msg, text, idx);
+            }
         }
     }
 
-    // ── تأثير الكتابة في صفحة ViewPager ──
-    private void typewriterInPager(int page, String text) {
-        RecyclerView.ViewHolder holder =
-            (RecyclerView.ViewHolder) viewPager.getTag(page);
-        if (holder == null) return;
+    // ── إزالة آخر loading في قائمة محددة ──
+    private void removeLastLoading(int listIndex) {
+        List<MessageModel> list = compareLists[listIndex];
+        for (int i = list.size() - 1; i >= 0; i--) {
+            if (list.get(i).getType() == MessageModel.TYPE_LOADING) {
+                list.remove(i);
+                compareAdapters[listIndex].notifyItemRemoved(i);
+                break;
+            }
+        }
+    }
 
-        ScrollView scroll = (ScrollView) holder.itemView;
-        TextView tv = (TextView) scroll.getChildAt(0);
-        if (tv == null) return;
-
-        tv.setText("");
+    // ── تأثير الكتابة في قائمة مقارنة محددة ──
+    private void typewriterInList(MessageModel msg, String text, int listIdx) {
         mainHandler.post(new Runnable() {
             int i = 0;
             @Override
             public void run() {
                 if (i < text.length()) {
                     int end = Math.min(i + 3, text.length());
-                    tv.setText(text.substring(0, end));
+                    msg.setMessage(text.substring(0, end));
+                    compareAdapters[listIdx].notifyItemChanged(
+                            compareLists[listIdx].indexOf(msg));
                     i = end;
                     mainHandler.postDelayed(this, 20);
                 }
@@ -270,7 +312,7 @@ public class MainActivity extends AppCompatActivity
         });
     }
 
-    // ── تأثير الكتابة في المحادثة ──
+    // ── تأثير الكتابة في المحادثة العادية ──
     private void typewriterEffect(String fullText) {
         MessageModel botMsg = new MessageModel("", MessageModel.TYPE_BOT);
         messageList.add(botMsg);
@@ -298,7 +340,7 @@ public class MainActivity extends AppCompatActivity
         etMessage.setText(message);
         etMessage.setSelection(message.length());
         editingPosition = position;
-        Toast.makeText(this, "✏️ عدّل الرسالة وأرسلها مجدداً",
+        Toast.makeText(this, "✏️ عدّل الرسالة وأعد إرسالها",
                 Toast.LENGTH_SHORT).show();
     }
 
