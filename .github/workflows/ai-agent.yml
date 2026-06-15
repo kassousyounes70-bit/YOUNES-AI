@@ -24,14 +24,11 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Anthropic SDK
-        run: npm install @anthropic-ai/sdk
-
       - name: Run AI Agent
         env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           REPO: ${{ github.repository }}
         run: node scripts/agent.mjs
