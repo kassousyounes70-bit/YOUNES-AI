@@ -15,6 +15,7 @@ public class MessageModel {
     private long   timestamp;
     private String timeFormatted;
     private String modelName;
+    private String emotion;
 
     public MessageModel(String message, int type) {
         this.message       = message;
@@ -30,14 +31,14 @@ public class MessageModel {
         this.modelName = modelName;
     }
 
-    // ── Getters ──
     public String getMessage()       { return message; }
     public int    getType()          { return type; }
     public long   getTimestamp()     { return timestamp; }
     public String getTimeFormatted() { return timeFormatted; }
     public String getModelName()     { return modelName; }
+    public String getEmotion()       { return emotion; }
 
-    // ── Setters ──
-    public void setMessage(String message) { this.message = message; }
-    public void setModelName(String name)  { this.modelName = name; }
+    public void setMessage(String message)   { this.message   = message; }
+    public void setModelName(String name)    { this.modelName = name; }
+    public void setEmotion(String emotion)   { this.emotion   = emotion; }
 }
