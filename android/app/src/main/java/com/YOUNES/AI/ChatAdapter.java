@@ -3,6 +3,7 @@ package com.YOUNES.AI;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
+import android.os.Environment;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -10,7 +11,11 @@ import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
+import java.io.File;
+import java.io.FileWriter;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
@@ -61,7 +66,6 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             h.tvMessage.setText(msg.getMessage());
             h.tvTime.setText(msg.getTimeFormatted());
 
-            // ضغط مطول = تعديل
             h.tvMessage.setOnLongClickListener(v -> {
                 if (actionListener != null)
                     actionListener.onEditMessage(
@@ -83,13 +87,23 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 h.tvModel.setVisibility(View.GONE);
             }
 
-            // ── حالة NPC حسب نوع الرسالة ──
+            // ── حالة NPC حسب المشاعر ──
             if (msg.getMessage().isEmpty()) {
-                // لا تزال تكتب
                 h.npcView.setState(NpcView.STATE_TYPING);
             } else {
-                // انتهت من الكتابة
-                h.npcView.setState(NpcView.STATE_HAPPY);
+                int state = emotionToState(msg.getEmotion());
+                h.npcView.setState(state);
+            }
+
+            // ── كشف الكود وإظهار زر التحميل ──
+            String code     = extractCode(msg.getMessage());
+            String ext      = extractExtension(msg.getMessage());
+            if (code != null) {
+                h.btnDownload.setVisibility(View.VISIBLE);
+                h.btnDownload.setOnClickListener(v ->
+                    saveCodeFile(v.getContext(), code, ext));
+            } else {
+                h.btnDownload.setVisibility(View.GONE);
             }
 
             // ضغط مطول = نسخ
@@ -99,9 +113,83 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             });
 
         } else if (holder instanceof LoadingViewHolder) {
-            // NPC في حالة تفكير
             ((LoadingViewHolder) holder).npcView
                     .setState(NpcView.STATE_THINKING);
+        }
+    }
+
+    // ── استخراج الكود من الرد ──
+    private String extractCode(String text) {
+        if (text == null) return null;
+        Pattern p = Pattern.compile("```[\\w]*\\n([\\s\\S]*?)```");
+        Matcher m = p.matcher(text);
+        if (m.find()) return m.group(1);
+        return null;
+    }
+
+    // ── استخراج الامتداد ──
+    private String extractExtension(String text) {
+        if (text == null) return "txt";
+        Pattern p = Pattern.compile("```(\\w+)");
+        Matcher m = p.matcher(text);
+        if (m.find()) {
+            String lang = m.group(1).toLowerCase();
+            switch (lang) {
+                case "java":       return "java";
+                case "xml":        return "xml";
+                case "kotlin":     return "kt";
+                case "javascript":
+                case "js":         return "js";
+                case "python":
+                case "py":         return "py";
+                case "html":       return "html";
+                case "css":        return "css";
+                case "json":       return "json";
+                case "gradle":     return "gradle";
+                case "yaml":
+                case "yml":        return "yml";
+                default:           return "txt";
+            }
+        }
+        return "txt";
+    }
+
+    // ── حفظ الكود كملف ──
+    private void saveCodeFile(Context ctx, String code, String ext) {
+        try {
+            File dir = new File(
+                Environment.getExternalStoragePublicDirectory(
+                    Environment.DIRECTORY_DOWNLOADS), "YounesAI");
+            if (!dir.exists()) dir.mkdirs();
+
+            String fileName = "code_"
+                + System.currentTimeMillis() + "." + ext;
+            File file = new File(dir, fileName);
+            FileWriter fw = new FileWriter(file);
+            fw.write(code);
+            fw.close();
+
+            Toast.makeText(ctx,
+                "✅ تم الحفظ: " + fileName,
+                Toast.LENGTH_LONG).show();
+
+        } catch (Exception e) {
+            Toast.makeText(ctx,
+                "❌ فشل الحفظ: " + e.getMessage(),
+                Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private int emotionToState(String emotion) {
+        if (emotion == null) return NpcView.STATE_HAPPY;
+        switch (emotion.toUpperCase()) {
+            case "SAD":         return NpcView.STATE_SAD;
+            case "EXCITED":     return NpcView.STATE_EXCITED;
+            case "ANGRY":       return NpcView.STATE_ANGRY;
+            case "LAUGHING":    return NpcView.STATE_LAUGHING;
+            case "CELEBRATING": return NpcView.STATE_CELEBRATING;
+            case "THINKING":    return NpcView.STATE_THINKING;
+            default:            return NpcView.STATE_HAPPY;
         }
     }
 
@@ -115,7 +203,6 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     @Override
     public int getItemCount() { return messages.size(); }
 
-    // ── ViewHolders ──
     static class UserViewHolder extends RecyclerView.ViewHolder {
         TextView tvMessage, tvTime;
         UserViewHolder(View v) {
@@ -128,12 +215,14 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     static class BotViewHolder extends RecyclerView.ViewHolder {
         TextView tvMessage, tvTime, tvModel;
         NpcView  npcView;
+        android.widget.ImageButton btnDownload;
         BotViewHolder(View v) {
             super(v);
-            tvMessage = v.findViewById(R.id.tv_message);
-            tvTime    = v.findViewById(R.id.tv_time);
-            tvModel   = v.findViewById(R.id.tv_model);
-            npcView   = v.findViewById(R.id.npc_view);
+            tvMessage   = v.findViewById(R.id.tv_message);
+            tvTime      = v.findViewById(R.id.tv_time);
+            tvModel     = v.findViewById(R.id.tv_model);
+            npcView     = v.findViewById(R.id.npc_view);
+            btnDownload = v.findViewById(R.id.btn_download);
         }
     }
 
