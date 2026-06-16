@@ -61,7 +61,7 @@
                 android:id="@+id/chip_llama"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="🦙 Llama 4"
+                android:text="⚡ Phi-4"
                 android:checked="true"
                 style="@style/Widget.MaterialComponents.Chip.Choice"
                 android:textColor="@color/white"
@@ -105,7 +105,7 @@
         </com.google.android.material.chip.ChipGroup>
     </HorizontalScrollView>
 
-    <!-- تبويبات المقارنة — تظهر فقط عند اختيار قارن -->
+    <!-- تبويبات المقارنة -->
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/tab_layout"
         android:layout_width="match_parent"
@@ -117,7 +117,7 @@
         app:tabIndicatorColor="@color/green_accent"
         app:layout_constraintTop_toBottomOf="@id/scroll_chips" />
 
-    <!-- منطقة المحادثة العادية -->
+    <!-- محادثة عادية -->
     <FrameLayout
         android:id="@+id/layout_normal"
         android:layout_width="match_parent"
@@ -129,13 +129,13 @@
             android:id="@+id/recycler_view"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:clipToPadding="false"
             android:paddingTop="8dp"
-            android:paddingBottom="8dp" />
+            android:paddingBottom="8dp"
+            android:clipToPadding="false" />
 
     </FrameLayout>
 
-    <!-- منطقة المقارنة — 3 شاشات بالسحب -->
+    <!-- محادثة المقارنة -->
     <FrameLayout
         android:id="@+id/layout_compare"
         android:layout_width="match_parent"
@@ -151,6 +151,246 @@
 
     </FrameLayout>
 
+    <!-- شاشة الحساب -->
+    <ScrollView
+        android:id="@+id/layout_account"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintTop_toBottomOf="@id/scroll_chips"
+        app:layout_constraintBottom_toTopOf="@id/input_layout">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- عداد التوكن -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_bubble_bot"
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:layout_marginBottom="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📊 عداد الطلبات اليومية"
+                    android:textColor="@color/green_accent"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="8dp" />
+
+                <TextView
+                    android:id="@+id/tv_requests_left"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="الطلبات المتبقية: -- / 150"
+                    android:textColor="@color/white"
+                    android:textSize="15sp" />
+
+                <TextView
+                    android:id="@+id/tv_reset_time"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="يتجدد خلال: --"
+                    android:textColor="@color/hint_color"
+                    android:textSize="13sp"
+                    android:layout_marginTop="4dp" />
+
+            </LinearLayout>
+
+            <!-- إنشاء حساب جديد -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_bubble_bot"
+                android:orientation="vertical"
+                android:padding="16dp"
+                android:layout_marginBottom="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🆕 إنشاء حساب GitHub جديد"
+                    android:textColor="@color/green_accent"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="12dp" />
+
+                <!-- بريد مؤقت -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📧 البريد المؤقت"
+                    android:textColor="@color/white"
+                    android:textSize="13sp"
+                    android:layout_marginBottom="4dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="12dp">
+
+                    <TextView
+                        android:id="@+id/tv_temp_email"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_input"
+                        android:text="اضغط توليد..."
+                        android:textColor="@color/hint_color"
+                        android:padding="10dp"
+                        android:textSize="13sp" />
+
+                    <androidx.appcompat.widget.AppCompatButton
+                        android:id="@+id/btn_gen_email"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:text="توليد"
+                        android:backgroundTint="@color/green_accent"
+                        android:textColor="@color/white" />
+
+                    <androidx.appcompat.widget.AppCompatButton
+                        android:id="@+id/btn_copy_email"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:text="نسخ"
+                        android:backgroundTint="@color/bubble_bot"
+                        android:textColor="@color/white" />
+
+                </LinearLayout>
+
+                <!-- كلمة السر -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="🔑 كلمة السر"
+                    android:textColor="@color/white"
+                    android:textSize="13sp"
+                    android:layout_marginBottom="4dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="16dp">
+
+                    <TextView
+                        android:id="@+id/tv_password"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_input"
+                        android:text="اضغط توليد..."
+                        android:textColor="@color/hint_color"
+                        android:padding="10dp"
+                        android:textSize="13sp" />
+
+                    <androidx.appcompat.widget.AppCompatButton
+                        android:id="@+id/btn_gen_password"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:text="توليد"
+                        android:backgroundTint="@color/green_accent"
+                        android:textColor="@color/white" />
+
+                    <androidx.appcompat.widget.AppCompatButton
+                        android:id="@+id/btn_copy_password"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:text="نسخ"
+                        android:backgroundTint="@color/bubble_bot"
+                        android:textColor="@color/white" />
+
+                </LinearLayout>
+
+                <!-- أزرار التسجيل والتوكن -->
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/btn_open_signup"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="🌐 فتح صفحة التسجيل في GitHub"
+                    android:backgroundTint="@color/green_dark"
+                    android:textColor="@color/white"
+                    android:layout_marginBottom="8dp" />
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/btn_open_token"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="🔑 احصل على التوكن من هنا"
+                    android:backgroundTint="@color/bot_icon_bg"
+                    android:textColor="@color/white"
+                    android:layout_marginBottom="8dp" />
+
+                <androidx.appcompat.widget.AppCompatButton
+                    android:id="@+id/btn_enter_token"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="✅ أدخل التوكن"
+                    android:backgroundTint="@color/compare_color"
+                    android:textColor="@color/white" />
+
+            </LinearLayout>
+
+            <!-- صندوق البريد الوارد -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_bubble_bot"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="8dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="📨 البريد الوارد"
+                        android:textColor="@color/green_accent"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <androidx.appcompat.widget.AppCompatButton
+                        android:id="@+id/btn_refresh_inbox"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🔄 تحديث"
+                        android:backgroundTint="@color/bubble_bot"
+                        android:textColor="@color/white" />
+
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tv_inbox"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="لا توجد رسائل بعد..."
+                    android:textColor="@color/hint_color"
+                    android:textSize="13sp"
+                    android:minHeight="80dp"
+                    android:gravity="center" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+    </ScrollView>
+
     <!-- Input Area -->
     <LinearLayout
         android:id="@+id/input_layout"
@@ -160,7 +400,16 @@
         android:gravity="center_vertical"
         android:padding="8dp"
         android:elevation="8dp"
-        app:layout_constraintBottom_toBottomOf="parent">
+        app:layout_constraintBottom_toTopOf="@id/bottom_nav">
+
+        <ImageButton
+            android:id="@+id/btn_attach"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_attachment"
+            android:tint="@color/hint_color"
+            android:layout_marginEnd="4dp" />
 
         <EditText
             android:id="@+id/et_message"
@@ -190,5 +439,17 @@
             android:tint="@color/white" />
 
     </LinearLayout>
+
+    <!-- Bottom Navigation -->
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottom_nav"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/header_dark"
+        app:itemIconTint="@color/hint_color"
+        app:itemTextColor="@color/hint_color"
+        app:itemActiveIndicatorColor="@color/green_accent"
+        app:menu="@menu/bottom_nav_menu"
+        app:layout_constraintBottom_toBottomOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
