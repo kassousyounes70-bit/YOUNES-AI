@@ -15,12 +15,12 @@ import java.util.ArrayList;
 public class GitHubApi {
 
     private static final String TAG      = "GitHubApi";
-    private static final String BASE_URL = "https://models.inference.ai.azure.com";
+    private static final String BASE_URL =
+            "https://models.inference.ai.azure.com";
 
     private final OkHttpClient client;
-    private final String token;
+    private final String       token;
 
-    // ── عداد الطلبات اليومية ──
     private static int  requestsUsed    = 0;
     private static int  requestsLimit   = 150;
     private static long resetTimeMillis = 0;
@@ -30,22 +30,15 @@ public class GitHubApi {
         void onError(String error);
     }
 
-    public interface StreamCallback {
-        void onChunk(String chunk);
-        void onDone();
-        void onError(String error);
-    }
-
     public GitHubApi(String token) {
-        this.token = token;
+        this.token  = token;
         this.client = new OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(60, TimeUnit.SECONDS)
+                .readTimeout(60,  TimeUnit.SECONDS)
                 .writeTimeout(30, TimeUnit.SECONDS)
                 .build();
     }
 
-    // ── تحويل اسم النموذج ──
     private String resolveModel(String model) {
         switch (model) {
             case "phi4":     return "Phi-4";
@@ -67,10 +60,8 @@ public class GitHubApi {
             try {
                 String modelId = resolveModel(model);
 
-                // ── بناء قائمة الرسائل مع الذاكرة ──
                 JSONArray messages = new JSONArray();
 
-                // System prompt
                 JSONObject system = new JSONObject();
                 system.put("role", "system");
                 system.put("content",
@@ -81,7 +72,6 @@ public class GitHubApi {
                     "تحدث دائماً بالعربية بأسلوب ودي ومفيد.");
                 messages.put(system);
 
-                // إضافة تاريخ المحادثة
                 for (MessageModel msg : history) {
                     if (msg.getType() == MessageModel.TYPE_USER ||
                         msg.getType() == MessageModel.TYPE_BOT) {
@@ -94,22 +84,20 @@ public class GitHubApi {
                     }
                 }
 
-                // رسالة المستخدم الحالية مع الملف إن وجد
                 JSONObject userMsg = new JSONObject();
                 userMsg.put("role", "user");
                 String content = userMessage;
                 if (fileContent != null && !fileContent.isEmpty()) {
-                    content = "محتوى الملف:\n```\n" + fileContent
-                            + "\n```\n\nطلبي: " + userMessage;
+                    content = "محتوى الملف:\n```\n"
+                            + fileContent + "\n```\n\nطلبي: " + userMessage;
                 }
                 userMsg.put("content", content);
                 messages.put(userMsg);
 
-                // ── بناء الطلب ──
                 JSONObject body = new JSONObject();
-                body.put("model", modelId);
+                body.put("model",      modelId);
                 body.put("max_tokens", 4096);
-                body.put("messages", messages);
+                body.put("messages",   messages);
 
                 Request request = new Request.Builder()
                         .url(BASE_URL + "/chat/completions")
@@ -122,15 +110,14 @@ public class GitHubApi {
 
                 try (Response response = client.newCall(request).execute()) {
                     if (response.isSuccessful() && response.body() != null) {
-                        String json = response.body().string();
+                        String     json = response.body().string();
                         JSONObject data = new JSONObject(json);
 
-                        // تحديث العداد
+                        // ── عداد طلب واحد ──
                         requestsUsed++;
                         if (resetTimeMillis == 0) {
-                            // يتجدد كل 24 ساعة
                             resetTimeMillis = System.currentTimeMillis()
-                                    + 24 * 60 * 60 * 1000;
+                                    + 24L * 60 * 60 * 1000;
                         }
 
                         String reply = data
@@ -143,7 +130,8 @@ public class GitHubApi {
 
                     } else {
                         String err = response.body() != null
-                                ? response.body().string() : "خطأ غير معروف";
+                                ? response.body().string()
+                                : "خطأ غير معروف";
                         callback.onError("خطأ " + response.code() + ": " + err);
                     }
                 }
@@ -155,7 +143,7 @@ public class GitHubApi {
         }).start();
     }
 
-    // ── إرسال لوضع المقارنة — 3 نماذج معاً ──
+    // ── إرسال لوضع المقارنة — 3 نماذج ──
     public void sendCompare(
             List<MessageModel> history,
             String userMessage,
@@ -164,10 +152,9 @@ public class GitHubApi {
 
         new Thread(() -> {
             try {
-                String[] models = {"phi4", "deepseek", "gpt5"};
-                String[] results = new String[3];
-                int[] done = {0};
-                boolean[] failed = {false};
+                String[]   models  = {"phi4", "deepseek", "gpt5"};
+                String[]   results = new String[3];
+                int[]      done    = {0};
 
                 for (int i = 0; i < 3; i++) {
                     final int idx = i;
@@ -178,6 +165,8 @@ public class GitHubApi {
                             results[idx] = result;
                             done[0]++;
                             if (done[0] == 3) {
+                                // ── عداد المقارنة = 3 طلبات ──
+                                requestsUsed += 2; // +2 لأن كل sendMessage أضاف 1
                                 String combined = "##COMPARE##"
                                     + "##MODEL1##" + results[0]
                                     + "##MODEL2##" + results[1]
@@ -189,9 +178,10 @@ public class GitHubApi {
 
                         @Override
                         public void onError(String error) {
-                            results[idx] = "⚠️ فشل هذا النموذج: " + error;
+                            results[idx] = "⚠️ فشل: " + error;
                             done[0]++;
                             if (done[0] == 3) {
+                                requestsUsed += 2;
                                 String combined = "##COMPARE##"
                                     + "##MODEL1##" + results[0]
                                     + "##MODEL2##" + results[1]
@@ -208,14 +198,15 @@ public class GitHubApi {
         }).start();
     }
 
-    // ── عداد الطلبات ──
-    public int getRequestsUsed()  { return requestsUsed; }
-    public int getRequestsLimit() { return requestsLimit; }
-    public int getRequestsLeft()  { return requestsLimit - requestsUsed; }
+    // ── العداد ──
+    public int    getRequestsUsed()  { return requestsUsed; }
+    public int    getRequestsLimit() { return requestsLimit; }
+    public int    getRequestsLeft()  { return requestsLimit - requestsUsed; }
 
     public String getResetTime() {
         if (resetTimeMillis == 0) return "غير معروف";
         long diff    = resetTimeMillis - System.currentTimeMillis();
+        if (diff <= 0) return "جاهز للتجديد";
         long hours   = diff / (1000 * 60 * 60);
         long minutes = (diff % (1000 * 60 * 60)) / (1000 * 60);
         return hours + "س " + minutes + "د";
@@ -226,7 +217,7 @@ public class GitHubApi {
                 System.currentTimeMillis() > resetTimeMillis) {
             requestsUsed    = 0;
             resetTimeMillis = System.currentTimeMillis()
-                    + 24 * 60 * 60 * 1000;
+                    + 24L * 60 * 60 * 1000;
         }
     }
 }
