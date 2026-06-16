@@ -23,8 +23,11 @@ import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.tabs.TabLayout;
 import com.google.android.material.tabs.TabLayoutMediator;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class MainActivity extends AppCompatActivity
         implements ChatAdapter.OnMessageActionListener {
@@ -41,6 +44,7 @@ public class MainActivity extends AppCompatActivity
     private View       layoutCompare;
 
     // ── قوائم المقارنة المستقلة ──
+    @SuppressWarnings("unchecked")
     private final List<MessageModel>[] compareLists   = new List[3];
     private final ChatAdapter[]        compareAdapters = new ChatAdapter[3];
 
@@ -54,6 +58,7 @@ public class MainActivity extends AppCompatActivity
     private ChipGroup   chipGroup;
 
     // ── عداد التوكن ──
+    private TextView tvCounter;
     private TextView tvRequestsLeft;
     private TextView tvResetTime;
 
@@ -61,9 +66,11 @@ public class MainActivity extends AppCompatActivity
     private Handler   mainHandler;
     private SharedPreferences prefs;
 
-    private String selectedModel    = "phi4";
-    private String attachedFile     = null;
-    private String attachedFileName = null;
+    private String  selectedModel    = "phi4";
+    private String  attachedFile     = null;
+    private String  attachedFileName = null;
+    private byte[]  attachedImage    = null;
+    private boolean isImageAttached  = false;
 
     private static final String PREF_NAME  = "YounesAI";
     private static final String PREF_TOKEN = "github_token";
@@ -93,61 +100,21 @@ public class MainActivity extends AppCompatActivity
     }
 
     private void initViews() {
-        recyclerView    = findViewById(R.id.recycler_view);
-        etMessage       = findViewById(R.id.et_message);
-        btnSend         = findViewById(R.id.btn_send);
-        btnAttach       = findViewById(R.id.btn_attach);
-        chipGroup       = findViewById(R.id.chip_group);
-        layoutNormal    = findViewById(R.id.layout_normal);
-        layoutCompare   = findViewById(R.id.layout_compare);
-        layoutAccount   = findViewById(R.id.layout_account);
+        recyclerView   = findViewById(R.id.recycler_view);
+        etMessage      = findViewById(R.id.et_message);
+        btnSend        = findViewById(R.id.btn_send);
+        btnAttach      = findViewById(R.id.btn_attach);
+        chipGroup      = findViewById(R.id.chip_group);
+        layoutNormal   = findViewById(R.id.layout_normal);
+        layoutCompare  = findViewById(R.id.layout_compare);
+        layoutAccount  = findViewById(R.id.layout_account);
+        viewPager      = findViewById(R.id.view_pager);
+        tabLayout      = findViewById(R.id.tab_layout);
+        tvCounter      = findViewById(R.id.tv_counter);
+        tvRequestsLeft = findViewById(R.id.tv_requests_left);
+        tvResetTime    = findViewById(R.id.tv_reset_time);
 
-        // ── إعداد شاشة الحساب ──
-        AccountManager accountManager = new AccountManager(this);
-
-        TextView tvTempEmail = findViewById(R.id.tv_temp_email);
-        TextView tvPassword  = findViewById(R.id.tv_password);
-        TextView tvInbox     = findViewById(R.id.tv_inbox);
-
-        String[] generatedPassword = {""};
-
-        findViewById(R.id.btn_gen_email).setOnClickListener(v ->
-            accountManager.generateEmail(tvTempEmail, null));
-
-        findViewById(R.id.btn_copy_email).setOnClickListener(v -> {
-            if (accountManager.getTempEmail() != null)
-                accountManager.copyText(accountManager.getTempEmail(), "البريد");
-        });
-
-        findViewById(R.id.btn_gen_password).setOnClickListener(v -> {
-            generatedPassword[0] = accountManager.generatePassword();
-            tvPassword.setText(generatedPassword[0]);
-            tvPassword.setTextColor(0xFFFFFFFF);
-        });
-
-        findViewById(R.id.btn_copy_password).setOnClickListener(v -> {
-            if (!generatedPassword[0].isEmpty())
-                accountManager.copyText(generatedPassword[0], "كلمة السر");
-        });
-
-        findViewById(R.id.btn_open_signup).setOnClickListener(v ->
-            accountManager.openSignup());
-
-        findViewById(R.id.btn_open_token).setOnClickListener(v ->
-            accountManager.openTokenPage());
-
-        findViewById(R.id.btn_enter_token).setOnClickListener(v ->
-            showTokenDialog());
-
-        findViewById(R.id.btn_refresh_inbox).setOnClickListener(v ->
-            accountManager.checkInbox(tvInbox));
-
-        viewPager       = findViewById(R.id.view_pager);
-        tabLayout       = findViewById(R.id.tab_layout);
-        tvRequestsLeft  = findViewById(R.id.tv_requests_left);
-        tvResetTime     = findViewById(R.id.tv_reset_time);
-
-        // ── RecyclerView المحادثة العادية ──
+        // ── RecyclerView ──
         messageList = new ArrayList<>();
         chatAdapter = new ChatAdapter(messageList);
         chatAdapter.setOnMessageActionListener(this);
@@ -156,7 +123,7 @@ public class MainActivity extends AppCompatActivity
         recyclerView.setLayoutManager(lm);
         recyclerView.setAdapter(chatAdapter);
 
-        // ── ViewPager المقارنة ──
+        // ── ViewPager — كل صفحة RecyclerView مستقل ──
         viewPager.setAdapter(
                 new RecyclerView.Adapter<RecyclerView.ViewHolder>() {
             @NonNull
@@ -205,10 +172,7 @@ public class MainActivity extends AppCompatActivity
             layoutAccount.setVisibility(View.GONE);
         });
 
-        // ── زر إرفاق ملف ──
         btnAttach.setOnClickListener(v -> openFilePicker());
-
-        // ── زر الإرسال ──
         btnSend.setOnClickListener(v -> sendMessage());
 
         // ── Bottom Navigation ──
@@ -224,7 +188,6 @@ public class MainActivity extends AppCompatActivity
         });
     }
 
-    // ── عرض شاشة المحادثة ──
     private void showChat() {
         boolean isCompare = selectedModel.equals("compare");
         layoutNormal.setVisibility(isCompare ? View.GONE  : View.VISIBLE);
@@ -233,23 +196,32 @@ public class MainActivity extends AppCompatActivity
         layoutAccount.setVisibility(View.GONE);
     }
 
-    // ── عرض شاشة الحساب ──
     private void showAccount() {
         layoutNormal.setVisibility(View.GONE);
         layoutCompare.setVisibility(View.GONE);
         tabLayout.setVisibility(View.GONE);
         layoutAccount.setVisibility(View.VISIBLE);
-        updateCounter();
+        updateCounterFull();
     }
 
-    // ── تحديث عداد التوكن ──
-    private void updateCounter() {
+    // ── تحديث العداد الصغير فوق النماذج ──
+    private void updateCounterSmall() {
+        if (gitHubApi == null || tvCounter == null) return;
+        gitHubApi.resetIfNeeded();
+        tvCounter.setText("⚡ " + gitHubApi.getRequestsLeft()
+                + "/" + gitHubApi.getRequestsLimit());
+    }
+
+    // ── تحديث العداد الكامل في تبويب الحساب ──
+    private void updateCounterFull() {
         if (gitHubApi == null) return;
-        gitHubApi.resetCounterIfNeeded();
-        tvRequestsLeft.setText(
-            "الطلبات المتبقية: " + gitHubApi.getRequestsLeft()
-            + " / " + gitHubApi.getRequestsLimit());
-        tvResetTime.setText("يتجدد خلال: " + gitHubApi.getResetTime());
+        gitHubApi.resetIfNeeded();
+        if (tvRequestsLeft != null)
+            tvRequestsLeft.setText("الطلبات المتبقية: "
+                + gitHubApi.getRequestsLeft()
+                + " / " + gitHubApi.getRequestsLimit());
+        if (tvResetTime != null)
+            tvResetTime.setText("يتجدد خلال: " + gitHubApi.getResetTime());
     }
 
     // ── فتح منتقي الملفات ──
@@ -267,18 +239,32 @@ public class MainActivity extends AppCompatActivity
         if (req == 100 && res == RESULT_OK && data != null) {
             Uri uri = data.getData();
             try {
-                // قراءة محتوى الملف
-                java.io.InputStream is =
-                        getContentResolver().openInputStream(uri);
-                byte[] bytes = new byte[is.available()];
-                is.read(bytes);
+                // ── استخراج الاسم الحقيقي للملف ──
+                String realName = getRealFileName(uri);
+
+                InputStream is = getContentResolver().openInputStream(uri);
+                byte[] bytes = is.readAllBytes();
                 is.close();
-                attachedFile     = new String(bytes);
-                attachedFileName = uri.getLastPathSegment();
+
+                String mimeType = getContentResolver().getType(uri);
+                isImageAttached = mimeType != null
+                        && mimeType.startsWith("image/");
+
+                if (isImageAttached) {
+                    attachedImage    = bytes;
+                    attachedFile     = null;
+                    attachedFileName = realName;
+                } else {
+                    attachedFile     = new String(bytes);
+                    attachedImage    = null;
+                    attachedFileName = realName;
+                }
+
                 etMessage.setHint("📎 " + attachedFileName
                         + " — اكتب طلبك...");
                 Toast.makeText(this, "✅ تم إرفاق: " + attachedFileName,
                         Toast.LENGTH_SHORT).show();
+
             } catch (Exception e) {
                 Toast.makeText(this, "❌ فشل قراءة الملف",
                         Toast.LENGTH_SHORT).show();
@@ -286,12 +272,35 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
+    // ── استخراج اسم الملف الحقيقي ──
+    private String getRealFileName(Uri uri) {
+        String result = null;
+        if ("content".equals(uri.getScheme())) {
+            try (android.database.Cursor cursor =
+                    getContentResolver().query(uri, null, null, null, null)) {
+                if (cursor != null && cursor.moveToFirst()) {
+                    int idx = cursor.getColumnIndex(
+                        android.provider.OpenableColumns.DISPLAY_NAME);
+                    if (idx >= 0) result = cursor.getString(idx);
+                }
+            } catch (Exception e) { /* ignore */ }
+        }
+        if (result == null) {
+            result = uri.getLastPathSegment();
+            if (result != null && result.contains("/")) {
+                result = result.substring(result.lastIndexOf("/") + 1);
+            }
+        }
+        return result != null ? result : "ملف";
+    }
+
     private void checkToken() {
         String token = prefs.getString(PREF_TOKEN, "");
         if (TextUtils.isEmpty(token)) {
             showTokenDialog();
         } else {
-            gitHubApi = new GitHubApi(token);
+            gitHubApi = new GitHubApi(token, this);
+            updateCounterSmall();
             addBotMessage(
                 "مرحباً! أنا Younes AI 🤖\nاختر النموذج وأرسل أي سؤال!",
                 "system");
@@ -312,7 +321,8 @@ public class MainActivity extends AppCompatActivity
                     String token = input.getText().toString().trim();
                     if (!TextUtils.isEmpty(token)) {
                         prefs.edit().putString(PREF_TOKEN, token).apply();
-                        gitHubApi = new GitHubApi(token);
+                        gitHubApi = new GitHubApi(token, this);
+                        updateCounterSmall();
                         addBotMessage(
                             "مرحباً! أنا Younes AI 🤖\n" +
                             "اختر النموذج وأرسل أي سؤال!",
@@ -328,7 +338,6 @@ public class MainActivity extends AppCompatActivity
                 .show();
     }
 
-    // ── الحصول على ذاكرة النموذج المحدد ──
     private List<MessageModel> getMemory(String model) {
         switch (model) {
             case "deepseek": return memoryDeepSeek;
@@ -345,29 +354,33 @@ public class MainActivity extends AppCompatActivity
         etMessage.setHint("اكتب رسالتك...");
         btnSend.setEnabled(false);
 
-        String fileContent    = attachedFile;
-        String fileName       = attachedFileName;
-        attachedFile          = null;
-        attachedFileName      = null;
+        String  fileContent   = attachedFile;
+        String  fileName      = attachedFileName;
+        byte[]  imgBytes      = attachedImage;
+        boolean isImg         = isImageAttached;
+
+        attachedFile     = null;
+        attachedFileName = null;
+        attachedImage    = null;
+        isImageAttached  = false;
 
         if (selectedModel.equals("compare")) {
-            // ── وضع المقارنة ──
             for (int i = 0; i < 3; i++) {
-                compareLists[i].add(
-                    new MessageModel(text, MessageModel.TYPE_USER));
-                compareLists[i].add(
-                    new MessageModel("...", MessageModel.TYPE_LOADING));
+                compareLists[i].add(new MessageModel(
+                    text, MessageModel.TYPE_USER));
+                compareLists[i].add(new MessageModel(
+                    "...", MessageModel.TYPE_LOADING));
                 compareAdapters[i].notifyDataSetChanged();
             }
 
-            // نستخدم ذاكرة Phi4 للمقارنة
-            gitHubApi.sendCompare(memoryPhi4, text, fileContent,
+            gitHubApi.sendCompare(memoryPhi4, text,
+                    fileContent, isImg, imgBytes,
                     new GitHubApi.Callback() {
                 @Override
                 public void onSuccess(String reply) {
                     mainHandler.post(() -> {
                         showCompareResult(reply);
-                        updateCounter();
+                        updateCounterSmall();
                         btnSend.setEnabled(true);
                     });
                 }
@@ -387,7 +400,6 @@ public class MainActivity extends AppCompatActivity
             });
 
         } else {
-            // ── نموذج واحد ──
             List<MessageModel> memory = getMemory(selectedModel);
 
             if (fileName != null) {
@@ -398,19 +410,25 @@ public class MainActivity extends AppCompatActivity
             int loadingIdx = addLoadingMessage();
 
             gitHubApi.sendMessage(selectedModel, memory, text,
-                    fileContent, new GitHubApi.Callback() {
+                    fileContent, isImg, imgBytes,
+                    new GitHubApi.Callback() {
                 @Override
                 public void onSuccess(String reply) {
                     mainHandler.post(() -> {
                         removeLoadingMessage(loadingIdx);
+
+                        // استخراج المشاعر
+                        String emotion  = extractEmotion(reply);
+                        String cleanMsg = removeEmotionTag(reply);
+
                         // حفظ في الذاكرة
                         memory.add(new MessageModel(
                             text, MessageModel.TYPE_USER));
                         memory.add(new MessageModel(
-                            reply, MessageModel.TYPE_BOT));
-                        // تأثير الكتابة
-                        typewriterEffect(reply, selectedModel);
-                        updateCounter();
+                            cleanMsg, MessageModel.TYPE_BOT));
+
+                        typewriterEffect(cleanMsg, selectedModel, emotion);
+                        updateCounterSmall();
                         btnSend.setEnabled(true);
                     });
                 }
@@ -420,6 +438,7 @@ public class MainActivity extends AppCompatActivity
                     mainHandler.post(() -> {
                         removeLoadingMessage(loadingIdx);
                         addBotMessage("❌ " + error, selectedModel);
+                        updateCounterSmall();
                         btnSend.setEnabled(true);
                     });
                 }
@@ -427,20 +446,46 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    // ── عرض نتائج المقارنة ──
+    // ── استخراج كود المشاعر ──
+    private String extractEmotion(String text) {
+        Pattern p = Pattern.compile("\\[EMOTION:(\\w+)\\]");
+        Matcher m = p.matcher(text);
+        if (m.find()) return m.group(1);
+        return "HAPPY";
+    }
+
+    // ── حذف كود المشاعر من النص ──
+    private String removeEmotionTag(String text) {
+        return text.replaceAll("\\[EMOTION:\\w+\\]", "").trim();
+    }
+
+    // ── تحويل كود المشاعر لحالة NPC ──
+    private int emotionToState(String emotion) {
+        if (emotion == null) return NpcView.STATE_HAPPY;
+        switch (emotion.toUpperCase()) {
+            case "SAD":         return NpcView.STATE_SAD;
+            case "EXCITED":     return NpcView.STATE_EXCITED;
+            case "ANGRY":       return NpcView.STATE_ANGRY;
+            case "LAUGHING":    return NpcView.STATE_LAUGHING;
+            case "CELEBRATING": return NpcView.STATE_CELEBRATING;
+            case "THINKING":    return NpcView.STATE_THINKING;
+            default:            return NpcView.STATE_HAPPY;
+        }
+    }
+
     private void showCompareResult(String reply) {
         String[] parts = reply.split("##MODEL[123]##");
         if (parts.length >= 4) {
             String[] responses = {
-                parts[1].replace("##END##", "").trim(),
-                parts[2].replace("##END##", "").trim(),
-                parts[3].replace("##END##", "").trim()
+                removeEmotionTag(parts[1].replace("##END##", "").trim()),
+                removeEmotionTag(parts[2].replace("##END##", "").trim()),
+                removeEmotionTag(parts[3].replace("##END##", "").trim())
             };
             for (int i = 0; i < 3; i++) {
                 removeLastLoading(i);
-                final int      idx  = i;
-                final String   text = responses[i];
-                MessageModel   msg  = new MessageModel(
+                final int    idx  = i;
+                final String text = responses[i];
+                MessageModel msg  = new MessageModel(
                         "", MessageModel.TYPE_BOT, MODEL_NAMES[i]);
                 compareLists[idx].add(msg);
                 compareAdapters[idx].notifyDataSetChanged();
@@ -460,7 +505,8 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    private void typewriterInList(MessageModel msg, String text, int idx) {
+    private void typewriterInList(
+            MessageModel msg, String text, int idx) {
         mainHandler.post(new Runnable() {
             int i = 0;
             @Override
@@ -469,7 +515,8 @@ public class MainActivity extends AppCompatActivity
                     int end = Math.min(i + 3, text.length());
                     msg.setMessage(text.substring(0, end));
                     int pos = compareLists[idx].indexOf(msg);
-                    if (pos >= 0) compareAdapters[idx].notifyItemChanged(pos);
+                    if (pos >= 0)
+                        compareAdapters[idx].notifyItemChanged(pos);
                     i = end;
                     mainHandler.postDelayed(this, 20);
                 }
@@ -477,9 +524,13 @@ public class MainActivity extends AppCompatActivity
         });
     }
 
-    private void typewriterEffect(String fullText, String model) {
+    private void typewriterEffect(
+            String fullText, String model, String emotion) {
+        int npcState = emotionToState(emotion);
+
         MessageModel botMsg = new MessageModel(
                 "", MessageModel.TYPE_BOT, model);
+        botMsg.setEmotion(emotion);
         messageList.add(botMsg);
         int index = messageList.size() - 1;
         chatAdapter.notifyItemInserted(index);
@@ -495,6 +546,9 @@ public class MainActivity extends AppCompatActivity
                     recyclerView.scrollToPosition(index);
                     i = end;
                     mainHandler.postDelayed(this, 20);
+                } else {
+                    // انتهت الكتابة — حدّث حالة NPC
+                    chatAdapter.notifyItemChanged(index);
                 }
             }
         });
@@ -515,13 +569,15 @@ public class MainActivity extends AppCompatActivity
     }
 
     private void addBotMessage(String text, String model) {
-        messageList.add(new MessageModel(text, MessageModel.TYPE_BOT, model));
+        messageList.add(new MessageModel(
+                text, MessageModel.TYPE_BOT, model));
         chatAdapter.notifyItemInserted(messageList.size() - 1);
         recyclerView.scrollToPosition(messageList.size() - 1);
     }
 
     private int addLoadingMessage() {
-        messageList.add(new MessageModel("...", MessageModel.TYPE_LOADING));
+        messageList.add(new MessageModel(
+                "...", MessageModel.TYPE_LOADING));
         int index = messageList.size() - 1;
         chatAdapter.notifyItemInserted(index);
         recyclerView.scrollToPosition(index);
