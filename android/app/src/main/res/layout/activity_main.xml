@@ -6,7 +6,6 @@
     android:layout_height="match_parent"
     android:background="@color/bg_dark">
 
-    <!-- Header -->
     <LinearLayout
         android:id="@+id/header"
         android:layout_width="match_parent"
@@ -37,7 +36,6 @@
 
     </LinearLayout>
 
-    <!-- أزرار النماذج -->
     <HorizontalScrollView
         android:id="@+id/scroll_chips"
         android:layout_width="match_parent"
@@ -105,7 +103,6 @@
         </com.google.android.material.chip.ChipGroup>
     </HorizontalScrollView>
 
-    <!-- تبويبات المقارنة -->
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/tab_layout"
         android:layout_width="match_parent"
@@ -117,7 +114,6 @@
         app:tabIndicatorColor="@color/green_accent"
         app:layout_constraintTop_toBottomOf="@id/scroll_chips" />
 
-    <!-- محادثة عادية -->
     <FrameLayout
         android:id="@+id/layout_normal"
         android:layout_width="match_parent"
@@ -135,7 +131,6 @@
 
     </FrameLayout>
 
-    <!-- محادثة المقارنة -->
     <FrameLayout
         android:id="@+id/layout_compare"
         android:layout_width="match_parent"
@@ -151,7 +146,6 @@
 
     </FrameLayout>
 
-    <!-- شاشة الحساب -->
     <ScrollView
         android:id="@+id/layout_account"
         android:layout_width="match_parent"
@@ -166,7 +160,6 @@
             android:orientation="vertical"
             android:padding="16dp">
 
-            <!-- عداد التوكن -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -203,7 +196,6 @@
 
             </LinearLayout>
 
-            <!-- إنشاء حساب جديد -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -221,7 +213,6 @@
                     android:textStyle="bold"
                     android:layout_marginBottom="12dp" />
 
-                <!-- بريد مؤقت -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -267,7 +258,6 @@
 
                 </LinearLayout>
 
-                <!-- كلمة السر -->
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -313,7 +303,6 @@
 
                 </LinearLayout>
 
-                <!-- أزرار التسجيل والتوكن -->
                 <androidx.appcompat.widget.AppCompatButton
                     android:id="@+id/btn_open_signup"
                     android:layout_width="match_parent"
@@ -342,7 +331,6 @@
 
             </LinearLayout>
 
-            <!-- صندوق البريد الوارد -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -391,7 +379,6 @@
         </LinearLayout>
     </ScrollView>
 
-    <!-- Input Area -->
     <LinearLayout
         android:id="@+id/input_layout"
         android:layout_width="match_parent"
@@ -407,7 +394,7 @@
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@android:drawable/ic_menu_attachment"
+            android:src="@drawable/ic_attachment"
             android:tint="@color/hint_color"
             android:layout_marginEnd="4dp" />
 
@@ -440,7 +427,6 @@
 
     </LinearLayout>
 
-    <!-- Bottom Navigation -->
     <com.google.android.material.bottomnavigation.BottomNavigationView
         android:id="@+id/bottom_nav"
         android:layout_width="match_parent"
@@ -448,7 +434,6 @@
         android:background="@color/header_dark"
         app:itemIconTint="@color/hint_color"
         app:itemTextColor="@color/hint_color"
-        app:itemActiveIndicatorColor="@color/green_accent"
         app:menu="@menu/bottom_nav_menu"
         app:layout_constraintBottom_toBottomOf="parent" />
 
