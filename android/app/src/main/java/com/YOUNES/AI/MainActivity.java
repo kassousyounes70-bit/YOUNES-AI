@@ -1,6 +1,8 @@
 package com.YOUNES.AI;
 
+import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -9,7 +11,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.ImageButton;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
@@ -18,6 +19,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewpager2.widget.ViewPager2;
+import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.chip.ChipGroup;
 import com.google.android.material.tabs.TabLayout;
 import com.google.android.material.tabs.TabLayoutMediator;
@@ -27,37 +29,52 @@ import java.util.List;
 public class MainActivity extends AppCompatActivity
         implements ChatAdapter.OnMessageActionListener {
 
-    // ── Views المحادثة العادية ──
-    private RecyclerView         recyclerView;
-    private ChatAdapter          chatAdapter;
-    private List<MessageModel>   messageList;
+    // ── Views المحادثة ──
+    private RecyclerView       recyclerView;
+    private ChatAdapter        chatAdapter;
+    private List<MessageModel> messageList;
 
     // ── Views المقارنة ──
-    private ViewPager2  viewPager;
-    private TabLayout   tabLayout;
-    private View        layoutNormal;
-    private View        layoutCompare;
+    private ViewPager2 viewPager;
+    private TabLayout  tabLayout;
+    private View       layoutNormal;
+    private View       layoutCompare;
 
-    // ── قوائم رسائل منفصلة لكل نموذج في المقارنة ──
-    private final List<MessageModel>[] compareLists = new List[3];
+    // ── قوائم المقارنة المستقلة ──
+    private final List<MessageModel>[] compareLists   = new List[3];
     private final ChatAdapter[]        compareAdapters = new ChatAdapter[3];
+
+    // ── Views الحساب ──
+    private View layoutAccount;
 
     // ── Input ──
     private EditText    etMessage;
     private ImageButton btnSend;
+    private ImageButton btnAttach;
     private ChipGroup   chipGroup;
+
+    // ── عداد التوكن ──
+    private TextView tvRequestsLeft;
+    private TextView tvResetTime;
 
     private GitHubApi gitHubApi;
     private Handler   mainHandler;
     private SharedPreferences prefs;
-    private String    selectedModel   = "phi4";
-    private int       editingPosition = -1;
+
+    private String selectedModel    = "phi4";
+    private String attachedFile     = null;
+    private String attachedFileName = null;
 
     private static final String PREF_NAME  = "YounesAI";
     private static final String PREF_TOKEN = "github_token";
 
     private static final String[] MODEL_NAMES =
             {"⚡ Phi-4", "🐋 DeepSeek", "✨ GPT-5"};
+
+    // ── ذاكرة منفصلة لكل نموذج ──
+    private final List<MessageModel> memoryPhi4     = new ArrayList<>();
+    private final List<MessageModel> memoryDeepSeek = new ArrayList<>();
+    private final List<MessageModel> memoryGpt5     = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,7 +83,6 @@ public class MainActivity extends AppCompatActivity
         mainHandler = new Handler(Looper.getMainLooper());
         prefs       = getSharedPreferences(PREF_NAME, MODE_PRIVATE);
 
-        // تهيئة قوائم المقارنة
         for (int i = 0; i < 3; i++) {
             compareLists[i]    = new ArrayList<>();
             compareAdapters[i] = new ChatAdapter(compareLists[i]);
@@ -77,16 +93,20 @@ public class MainActivity extends AppCompatActivity
     }
 
     private void initViews() {
-        recyclerView  = findViewById(R.id.recycler_view);
-        etMessage     = findViewById(R.id.et_message);
-        btnSend       = findViewById(R.id.btn_send);
-        chipGroup     = findViewById(R.id.chip_group);
-        layoutNormal  = findViewById(R.id.layout_normal);
-        layoutCompare = findViewById(R.id.layout_compare);
-        viewPager     = findViewById(R.id.view_pager);
-        tabLayout     = findViewById(R.id.tab_layout);
+        recyclerView    = findViewById(R.id.recycler_view);
+        etMessage       = findViewById(R.id.et_message);
+        btnSend         = findViewById(R.id.btn_send);
+        btnAttach       = findViewById(R.id.btn_attach);
+        chipGroup       = findViewById(R.id.chip_group);
+        layoutNormal    = findViewById(R.id.layout_normal);
+        layoutCompare   = findViewById(R.id.layout_compare);
+        layoutAccount   = findViewById(R.id.layout_account);
+        viewPager       = findViewById(R.id.view_pager);
+        tabLayout       = findViewById(R.id.tab_layout);
+        tvRequestsLeft  = findViewById(R.id.tv_requests_left);
+        tvResetTime     = findViewById(R.id.tv_reset_time);
 
-        // ── RecyclerView للمحادثة العادية ──
+        // ── RecyclerView المحادثة العادية ──
         messageList = new ArrayList<>();
         chatAdapter = new ChatAdapter(messageList);
         chatAdapter.setOnMessageActionListener(this);
@@ -95,8 +115,9 @@ public class MainActivity extends AppCompatActivity
         recyclerView.setLayoutManager(lm);
         recyclerView.setAdapter(chatAdapter);
 
-        // ── ViewPager — كل صفحة لها RecyclerView مستقل ──
-        viewPager.setAdapter(new RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+        // ── ViewPager المقارنة ──
+        viewPager.setAdapter(
+                new RecyclerView.Adapter<RecyclerView.ViewHolder>() {
             @NonNull
             @Override
             public RecyclerView.ViewHolder onCreateViewHolder(
@@ -114,9 +135,9 @@ public class MainActivity extends AppCompatActivity
 
             @Override
             public void onBindViewHolder(
-                    @NonNull RecyclerView.ViewHolder holder, int position) {
-                RecyclerView rv = (RecyclerView) holder.itemView;
-                rv.setAdapter(compareAdapters[position]);
+                    @NonNull RecyclerView.ViewHolder holder, int pos) {
+                ((RecyclerView) holder.itemView)
+                        .setAdapter(compareAdapters[pos]);
             }
 
             @Override
@@ -128,26 +149,100 @@ public class MainActivity extends AppCompatActivity
         ).attach();
 
         // ── أزرار النماذج ──
-        chipGroup.setOnCheckedStateChangeListener((group, checkedIds) -> {
-            if (checkedIds.isEmpty()) return;
-            int id = checkedIds.get(0);
+        chipGroup.setOnCheckedStateChangeListener((group, ids) -> {
+            if (ids.isEmpty()) return;
+            int id = ids.get(0);
             if      (id == R.id.chip_llama)    selectedModel = "phi4";
             else if (id == R.id.chip_deepseek) selectedModel = "deepseek";
             else if (id == R.id.chip_gpt5)     selectedModel = "gpt5";
             else if (id == R.id.chip_compare)  selectedModel = "compare";
 
-            if (selectedModel.equals("compare")) {
-                layoutNormal.setVisibility(View.GONE);
-                layoutCompare.setVisibility(View.VISIBLE);
-                tabLayout.setVisibility(View.VISIBLE);
-            } else {
-                layoutNormal.setVisibility(View.VISIBLE);
-                layoutCompare.setVisibility(View.GONE);
-                tabLayout.setVisibility(View.GONE);
-            }
+            boolean isCompare = selectedModel.equals("compare");
+            layoutNormal.setVisibility(isCompare ? View.GONE  : View.VISIBLE);
+            layoutCompare.setVisibility(isCompare ? View.VISIBLE : View.GONE);
+            tabLayout.setVisibility(isCompare ? View.VISIBLE : View.GONE);
+            layoutAccount.setVisibility(View.GONE);
         });
 
+        // ── زر إرفاق ملف ──
+        btnAttach.setOnClickListener(v -> openFilePicker());
+
+        // ── زر الإرسال ──
         btnSend.setOnClickListener(v -> sendMessage());
+
+        // ── Bottom Navigation ──
+        BottomNavigationView bottomNav = findViewById(R.id.bottom_nav);
+        bottomNav.setOnItemSelectedListener(item -> {
+            int id = item.getItemId();
+            if (id == R.id.nav_chat) {
+                showChat();
+            } else if (id == R.id.nav_account) {
+                showAccount();
+            }
+            return true;
+        });
+    }
+
+    // ── عرض شاشة المحادثة ──
+    private void showChat() {
+        boolean isCompare = selectedModel.equals("compare");
+        layoutNormal.setVisibility(isCompare ? View.GONE  : View.VISIBLE);
+        layoutCompare.setVisibility(isCompare ? View.VISIBLE : View.GONE);
+        tabLayout.setVisibility(isCompare ? View.VISIBLE : View.GONE);
+        layoutAccount.setVisibility(View.GONE);
+    }
+
+    // ── عرض شاشة الحساب ──
+    private void showAccount() {
+        layoutNormal.setVisibility(View.GONE);
+        layoutCompare.setVisibility(View.GONE);
+        tabLayout.setVisibility(View.GONE);
+        layoutAccount.setVisibility(View.VISIBLE);
+        updateCounter();
+    }
+
+    // ── تحديث عداد التوكن ──
+    private void updateCounter() {
+        if (gitHubApi == null) return;
+        gitHubApi.resetCounterIfNeeded();
+        tvRequestsLeft.setText(
+            "الطلبات المتبقية: " + gitHubApi.getRequestsLeft()
+            + " / " + gitHubApi.getRequestsLimit());
+        tvResetTime.setText("يتجدد خلال: " + gitHubApi.getResetTime());
+    }
+
+    // ── فتح منتقي الملفات ──
+    private void openFilePicker() {
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.setType("*/*");
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        startActivityForResult(
+            Intent.createChooser(intent, "اختر ملفاً"), 100);
+    }
+
+    @Override
+    protected void onActivityResult(int req, int res, Intent data) {
+        super.onActivityResult(req, res, data);
+        if (req == 100 && res == RESULT_OK && data != null) {
+            Uri uri = data.getData();
+            try {
+                // قراءة محتوى الملف
+                java.io.InputStream is =
+                        getContentResolver().openInputStream(uri);
+                byte[] bytes = new byte[is.available()];
+                is.read(bytes);
+                is.close();
+                attachedFile     = new String(bytes);
+                attachedFileName = uri.getLastPathSegment();
+                etMessage.setHint("📎 " + attachedFileName
+                        + " — اكتب طلبك...");
+                Toast.makeText(this, "✅ تم إرفاق: " + attachedFileName,
+                        Toast.LENGTH_SHORT).show();
+            } catch (Exception e) {
+                Toast.makeText(this, "❌ فشل قراءة الملف",
+                        Toast.LENGTH_SHORT).show();
+            }
+        }
     }
 
     private void checkToken() {
@@ -156,7 +251,9 @@ public class MainActivity extends AppCompatActivity
             showTokenDialog();
         } else {
             gitHubApi = new GitHubApi(token);
-            addBotMessage("مرحباً! أنا Younes AI 🤖\nاختر النموذج وأرسل أي سؤال!");
+            addBotMessage(
+                "مرحباً! أنا Younes AI 🤖\nاختر النموذج وأرسل أي سؤال!",
+                "system");
         }
     }
 
@@ -170,21 +267,33 @@ public class MainActivity extends AppCompatActivity
                 .setMessage("أدخل GitHub Personal Access Token")
                 .setView(input)
                 .setCancelable(false)
-                .setPositiveButton("حفظ", (dialog, which) -> {
+                .setPositiveButton("حفظ", (d, w) -> {
                     String token = input.getText().toString().trim();
                     if (!TextUtils.isEmpty(token)) {
                         prefs.edit().putString(PREF_TOKEN, token).apply();
                         gitHubApi = new GitHubApi(token);
-                        addBotMessage("مرحباً! أنا Younes AI 🤖\nاختر النموذج وأرسل أي سؤال!");
+                        addBotMessage(
+                            "مرحباً! أنا Younes AI 🤖\n" +
+                            "اختر النموذج وأرسل أي سؤال!",
+                            "system");
                     } else {
                         showTokenDialog();
                     }
                 })
-                .setNegativeButton("تغيير", (dialog, which) -> {
+                .setNegativeButton("تغيير", (d, w) -> {
                     prefs.edit().remove(PREF_TOKEN).apply();
                     showTokenDialog();
                 })
                 .show();
+    }
+
+    // ── الحصول على ذاكرة النموذج المحدد ──
+    private List<MessageModel> getMemory(String model) {
+        switch (model) {
+            case "deepseek": return memoryDeepSeek;
+            case "gpt5":     return memoryGpt5;
+            default:         return memoryPhi4;
+        }
     }
 
     private void sendMessage() {
@@ -192,75 +301,92 @@ public class MainActivity extends AppCompatActivity
         if (TextUtils.isEmpty(text)) return;
 
         etMessage.setText("");
-        editingPosition = -1;
+        etMessage.setHint("اكتب رسالتك...");
         btnSend.setEnabled(false);
 
+        String fileContent    = attachedFile;
+        String fileName       = attachedFileName;
+        attachedFile          = null;
+        attachedFileName      = null;
+
         if (selectedModel.equals("compare")) {
-            // ── وضع المقارنة: أضف رسالة المستخدم للثلاثة ──
+            // ── وضع المقارنة ──
             for (int i = 0; i < 3; i++) {
-                compareLists[i].add(new MessageModel(text, MessageModel.TYPE_USER));
-                compareLists[i].add(new MessageModel("...", MessageModel.TYPE_LOADING));
+                compareLists[i].add(
+                    new MessageModel(text, MessageModel.TYPE_USER));
+                compareLists[i].add(
+                    new MessageModel("...", MessageModel.TYPE_LOADING));
                 compareAdapters[i].notifyDataSetChanged();
             }
-        } else {
-            addUserMessage(text);
-        }
 
-        int loadingIndex = selectedModel.equals("compare") ? -1 : addLoadingMessage();
-
-        gitHubApi.sendMessage(text, selectedModel, new GitHubApi.Callback() {
-            @Override
-            public void onSuccess(String issueNumber) {
-                gitHubApi.waitForReply(
-                    Integer.parseInt(issueNumber),
+            // نستخدم ذاكرة Phi4 للمقارنة
+            gitHubApi.sendCompare(memoryPhi4, text, fileContent,
                     new GitHubApi.Callback() {
-                        @Override
-                        public void onSuccess(String reply) {
-                            mainHandler.post(() -> {
-                                if (reply.contains("##COMPARE##")) {
-                                    showCompareResult(reply);
-                                } else {
-                                    if (loadingIndex >= 0)
-                                        removeLoadingMessage(loadingIndex);
-                                    typewriterEffect(reply);
-                                }
-                                btnSend.setEnabled(true);
-                            });
-                        }
-
-                        @Override
-                        public void onError(String error) {
-                            mainHandler.post(() -> {
-                                if (loadingIndex >= 0)
-                                    removeLoadingMessage(loadingIndex);
-                                if (selectedModel.equals("compare")) {
-                                    for (int i = 0; i < 3; i++) {
-                                        removeLastLoading(i);
-                                        compareLists[i].add(new MessageModel(
-                                            "⚠️ " + error, MessageModel.TYPE_BOT));
-                                        compareAdapters[i].notifyDataSetChanged();
-                                    }
-                                } else {
-                                    addBotMessage("⚠️ " + error);
-                                }
-                                btnSend.setEnabled(true);
-                            });
-                        }
+                @Override
+                public void onSuccess(String reply) {
+                    mainHandler.post(() -> {
+                        showCompareResult(reply);
+                        updateCounter();
+                        btnSend.setEnabled(true);
                     });
-            }
+                }
 
-            @Override
-            public void onError(String error) {
-                mainHandler.post(() -> {
-                    if (loadingIndex >= 0) removeLoadingMessage(loadingIndex);
-                    addBotMessage("❌ " + error);
-                    btnSend.setEnabled(true);
-                });
+                @Override
+                public void onError(String error) {
+                    mainHandler.post(() -> {
+                        for (int i = 0; i < 3; i++) {
+                            removeLastLoading(i);
+                            compareLists[i].add(new MessageModel(
+                                "⚠️ " + error, MessageModel.TYPE_BOT));
+                            compareAdapters[i].notifyDataSetChanged();
+                        }
+                        btnSend.setEnabled(true);
+                    });
+                }
+            });
+
+        } else {
+            // ── نموذج واحد ──
+            List<MessageModel> memory = getMemory(selectedModel);
+
+            if (fileName != null) {
+                addUserMessage("📎 " + fileName + "\n" + text);
+            } else {
+                addUserMessage(text);
             }
-        });
+            int loadingIdx = addLoadingMessage();
+
+            gitHubApi.sendMessage(selectedModel, memory, text,
+                    fileContent, new GitHubApi.Callback() {
+                @Override
+                public void onSuccess(String reply) {
+                    mainHandler.post(() -> {
+                        removeLoadingMessage(loadingIdx);
+                        // حفظ في الذاكرة
+                        memory.add(new MessageModel(
+                            text, MessageModel.TYPE_USER));
+                        memory.add(new MessageModel(
+                            reply, MessageModel.TYPE_BOT));
+                        // تأثير الكتابة
+                        typewriterEffect(reply, selectedModel);
+                        updateCounter();
+                        btnSend.setEnabled(true);
+                    });
+                }
+
+                @Override
+                public void onError(String error) {
+                    mainHandler.post(() -> {
+                        removeLoadingMessage(loadingIdx);
+                        addBotMessage("❌ " + error, selectedModel);
+                        btnSend.setEnabled(true);
+                    });
+                }
+            });
+        }
     }
 
-    // ── عرض المقارنة — كل نموذج في تبويبه المستقل ──
+    // ── عرض نتائج المقارنة ──
     private void showCompareResult(String reply) {
         String[] parts = reply.split("##MODEL[123]##");
         if (parts.length >= 4) {
@@ -269,12 +395,12 @@ public class MainActivity extends AppCompatActivity
                 parts[2].replace("##END##", "").trim(),
                 parts[3].replace("##END##", "").trim()
             };
-
             for (int i = 0; i < 3; i++) {
                 removeLastLoading(i);
-                final int idx      = i;
-                final String text  = responses[i];
-                MessageModel msg   = new MessageModel("", MessageModel.TYPE_BOT);
+                final int      idx  = i;
+                final String   text = responses[i];
+                MessageModel   msg  = new MessageModel(
+                        "", MessageModel.TYPE_BOT, MODEL_NAMES[i]);
                 compareLists[idx].add(msg);
                 compareAdapters[idx].notifyDataSetChanged();
                 typewriterInList(msg, text, idx);
@@ -282,20 +408,18 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    // ── إزالة آخر loading في قائمة محددة ──
-    private void removeLastLoading(int listIndex) {
-        List<MessageModel> list = compareLists[listIndex];
+    private void removeLastLoading(int idx) {
+        List<MessageModel> list = compareLists[idx];
         for (int i = list.size() - 1; i >= 0; i--) {
             if (list.get(i).getType() == MessageModel.TYPE_LOADING) {
                 list.remove(i);
-                compareAdapters[listIndex].notifyItemRemoved(i);
+                compareAdapters[idx].notifyItemRemoved(i);
                 break;
             }
         }
     }
 
-    // ── تأثير الكتابة في قائمة مقارنة محددة ──
-    private void typewriterInList(MessageModel msg, String text, int listIdx) {
+    private void typewriterInList(MessageModel msg, String text, int idx) {
         mainHandler.post(new Runnable() {
             int i = 0;
             @Override
@@ -303,8 +427,8 @@ public class MainActivity extends AppCompatActivity
                 if (i < text.length()) {
                     int end = Math.min(i + 3, text.length());
                     msg.setMessage(text.substring(0, end));
-                    compareAdapters[listIdx].notifyItemChanged(
-                            compareLists[listIdx].indexOf(msg));
+                    int pos = compareLists[idx].indexOf(msg);
+                    if (pos >= 0) compareAdapters[idx].notifyItemChanged(pos);
                     i = end;
                     mainHandler.postDelayed(this, 20);
                 }
@@ -312,9 +436,9 @@ public class MainActivity extends AppCompatActivity
         });
     }
 
-    // ── تأثير الكتابة في المحادثة العادية ──
-    private void typewriterEffect(String fullText) {
-        MessageModel botMsg = new MessageModel("", MessageModel.TYPE_BOT);
+    private void typewriterEffect(String fullText, String model) {
+        MessageModel botMsg = new MessageModel(
+                "", MessageModel.TYPE_BOT, model);
         messageList.add(botMsg);
         int index = messageList.size() - 1;
         chatAdapter.notifyItemInserted(index);
@@ -339,7 +463,6 @@ public class MainActivity extends AppCompatActivity
     public void onEditMessage(String message, int position) {
         etMessage.setText(message);
         etMessage.setSelection(message.length());
-        editingPosition = position;
         Toast.makeText(this, "✏️ عدّل الرسالة وأعد إرسالها",
                 Toast.LENGTH_SHORT).show();
     }
@@ -350,8 +473,8 @@ public class MainActivity extends AppCompatActivity
         recyclerView.scrollToPosition(messageList.size() - 1);
     }
 
-    private void addBotMessage(String text) {
-        messageList.add(new MessageModel(text, MessageModel.TYPE_BOT));
+    private void addBotMessage(String text, String model) {
+        messageList.add(new MessageModel(text, MessageModel.TYPE_BOT, model));
         chatAdapter.notifyItemInserted(messageList.size() - 1);
         recyclerView.scrollToPosition(messageList.size() - 1);
     }
