@@ -9,7 +9,6 @@
     android:paddingTop="4dp"
     android:paddingBottom="4dp">
 
-    <!-- أيقونة البوت -->
     <TextView
         android:layout_width="36dp"
         android:layout_height="36dp"
@@ -23,12 +22,22 @@
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:background="@drawable/bg_bubble_bot"
         android:orientation="vertical"
+        android:background="@drawable/bg_bubble_bot"
         android:paddingStart="14dp"
         android:paddingEnd="14dp"
-        android:paddingTop="10dp"
-        android:paddingBottom="10dp">
+        android:paddingTop="8dp"
+        android:paddingBottom="6dp">
+
+        <TextView
+            android:id="@+id/tv_model"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/green_accent"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="4dp"
+            android:visibility="gone" />
 
         <TextView
             android:id="@+id/tv_message"
@@ -38,6 +47,15 @@
             android:textSize="15sp"
             android:lineSpacingExtra="2dp"
             android:layoutDirection="rtl" />
+
+        <TextView
+            android:id="@+id/tv_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:textColor="@color/hint_color"
+            android:textSize="10sp"
+            android:layout_marginTop="4dp" />
 
     </LinearLayout>
 
