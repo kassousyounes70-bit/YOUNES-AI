@@ -12,12 +12,12 @@
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:background="@drawable/bg_bubble_user"
         android:orientation="vertical"
+        android:background="@drawable/bg_bubble_user"
         android:paddingStart="14dp"
         android:paddingEnd="14dp"
         android:paddingTop="10dp"
-        android:paddingBottom="10dp">
+        android:paddingBottom="6dp">
 
         <TextView
             android:id="@+id/tv_message"
@@ -27,6 +27,15 @@
             android:textSize="15sp"
             android:lineSpacingExtra="2dp"
             android:layoutDirection="rtl" />
+
+        <TextView
+            android:id="@+id/tv_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:textColor="@color/hint_color"
+            android:textSize="10sp"
+            android:layout_marginTop="4dp" />
 
     </LinearLayout>
 
