@@ -4,20 +4,18 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:gravity="start"
-    android:paddingStart="12dp"
+    android:paddingStart="8dp"
     android:paddingEnd="64dp"
     android:paddingTop="4dp"
     android:paddingBottom="4dp">
 
-    <TextView
-        android:layout_width="36dp"
-        android:layout_height="36dp"
+    <!-- شخصية NPC بدل أيقونة الروبوت -->
+    <com.YOUNES.AI.NpcView
+        android:id="@+id/npc_view"
+        android:layout_width="60dp"
+        android:layout_height="80dp"
         android:layout_marginEnd="8dp"
-        android:layout_marginTop="4dp"
-        android:background="@drawable/bg_bot_icon"
-        android:gravity="center"
-        android:text="🤖"
-        android:textSize="18sp" />
+        android:layout_marginTop="4dp" />
 
     <LinearLayout
         android:layout_width="wrap_content"
@@ -27,8 +25,10 @@
         android:paddingStart="14dp"
         android:paddingEnd="14dp"
         android:paddingTop="8dp"
-        android:paddingBottom="6dp">
+        android:paddingBottom="6dp"
+        android:layout_gravity="center_vertical">
 
+        <!-- اسم النموذج -->
         <TextView
             android:id="@+id/tv_model"
             android:layout_width="wrap_content"
@@ -39,6 +39,7 @@
             android:layout_marginBottom="4dp"
             android:visibility="gone" />
 
+        <!-- نص الرسالة -->
         <TextView
             android:id="@+id/tv_message"
             android:layout_width="wrap_content"
@@ -48,6 +49,7 @@
             android:lineSpacingExtra="2dp"
             android:layoutDirection="rtl" />
 
+        <!-- الوقت -->
         <TextView
             android:id="@+id/tv_time"
             android:layout_width="wrap_content"
