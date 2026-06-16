@@ -101,6 +101,47 @@ public class MainActivity extends AppCompatActivity
         layoutNormal    = findViewById(R.id.layout_normal);
         layoutCompare   = findViewById(R.id.layout_compare);
         layoutAccount   = findViewById(R.id.layout_account);
+
+        // ── إعداد شاشة الحساب ──
+        AccountManager accountManager = new AccountManager(this);
+
+        TextView tvTempEmail = findViewById(R.id.tv_temp_email);
+        TextView tvPassword  = findViewById(R.id.tv_password);
+        TextView tvInbox     = findViewById(R.id.tv_inbox);
+
+        String[] generatedPassword = {""};
+
+        findViewById(R.id.btn_gen_email).setOnClickListener(v ->
+            accountManager.generateEmail(tvTempEmail, null));
+
+        findViewById(R.id.btn_copy_email).setOnClickListener(v -> {
+            if (accountManager.getTempEmail() != null)
+                accountManager.copyText(accountManager.getTempEmail(), "البريد");
+        });
+
+        findViewById(R.id.btn_gen_password).setOnClickListener(v -> {
+            generatedPassword[0] = accountManager.generatePassword();
+            tvPassword.setText(generatedPassword[0]);
+            tvPassword.setTextColor(0xFFFFFFFF);
+        });
+
+        findViewById(R.id.btn_copy_password).setOnClickListener(v -> {
+            if (!generatedPassword[0].isEmpty())
+                accountManager.copyText(generatedPassword[0], "كلمة السر");
+        });
+
+        findViewById(R.id.btn_open_signup).setOnClickListener(v ->
+            accountManager.openSignup());
+
+        findViewById(R.id.btn_open_token).setOnClickListener(v ->
+            accountManager.openTokenPage());
+
+        findViewById(R.id.btn_enter_token).setOnClickListener(v ->
+            showTokenDialog());
+
+        findViewById(R.id.btn_refresh_inbox).setOnClickListener(v ->
+            accountManager.checkInbox(tvInbox));
+
         viewPager       = findViewById(R.id.view_pager);
         tabLayout       = findViewById(R.id.tab_layout);
         tvRequestsLeft  = findViewById(R.id.tv_requests_left);
