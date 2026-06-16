@@ -26,6 +26,16 @@
             android:textSize="20sp"
             android:textStyle="bold" />
 
+        <TextView
+            android:id="@+id/tv_counter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="⚡ 150/150"
+            android:textColor="@color/green_accent"
+            android:textSize="12sp"
+            android:paddingEnd="12dp"
+            android:layout_gravity="end" />
+
         <ImageButton
             android:id="@+id/btn_settings"
             android:layout_width="40dp"
