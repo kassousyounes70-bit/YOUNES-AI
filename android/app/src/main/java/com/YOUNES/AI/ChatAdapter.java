@@ -14,8 +14,8 @@ import java.util.List;
 
 public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
-    private final List<MessageModel>    messages;
-    private       OnMessageActionListener actionListener;
+    private final List<MessageModel>  messages;
+    private OnMessageActionListener   actionListener;
 
     public interface OnMessageActionListener {
         void onEditMessage(String message, int position);
@@ -75,11 +75,21 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             h.tvTime.setText(msg.getTimeFormatted());
 
             // اسم النموذج
-            if (msg.getModelName() != null) {
+            if (msg.getModelName() != null
+                    && !msg.getModelName().isEmpty()) {
                 h.tvModel.setText(msg.getModelName());
                 h.tvModel.setVisibility(View.VISIBLE);
             } else {
                 h.tvModel.setVisibility(View.GONE);
+            }
+
+            // ── حالة NPC حسب نوع الرسالة ──
+            if (msg.getMessage().isEmpty()) {
+                // لا تزال تكتب
+                h.npcView.setState(NpcView.STATE_TYPING);
+            } else {
+                // انتهت من الكتابة
+                h.npcView.setState(NpcView.STATE_HAPPY);
             }
 
             // ضغط مطول = نسخ
@@ -87,12 +97,17 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 copyText(v.getContext(), msg.getMessage());
                 return true;
             });
+
+        } else if (holder instanceof LoadingViewHolder) {
+            // NPC في حالة تفكير
+            ((LoadingViewHolder) holder).npcView
+                    .setState(NpcView.STATE_THINKING);
         }
     }
 
     private void copyText(Context ctx, String text) {
-        ClipboardManager cm =
-            (ClipboardManager) ctx.getSystemService(Context.CLIPBOARD_SERVICE);
+        ClipboardManager cm = (ClipboardManager)
+                ctx.getSystemService(Context.CLIPBOARD_SERVICE);
         cm.setPrimaryClip(ClipData.newPlainText("رسالة", text));
         Toast.makeText(ctx, "✅ تم النسخ", Toast.LENGTH_SHORT).show();
     }
@@ -112,15 +127,21 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     static class BotViewHolder extends RecyclerView.ViewHolder {
         TextView tvMessage, tvTime, tvModel;
+        NpcView  npcView;
         BotViewHolder(View v) {
             super(v);
             tvMessage = v.findViewById(R.id.tv_message);
             tvTime    = v.findViewById(R.id.tv_time);
             tvModel   = v.findViewById(R.id.tv_model);
+            npcView   = v.findViewById(R.id.npc_view);
         }
     }
 
     static class LoadingViewHolder extends RecyclerView.ViewHolder {
-        LoadingViewHolder(View v) { super(v); }
+        NpcView npcView;
+        LoadingViewHolder(View v) {
+            super(v);
+            npcView = v.findViewById(R.id.npc_view);
+        }
     }
 }
